@@ -577,7 +577,7 @@
     </div>
     <div class="form-group">
       <label class="form-label">Gross Score <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-3)">(Double bogey max)</span></label>
-      <input class="form-input" id="round-gross" type="number" min="50" max="150" placeholder="e.g. 88" oninput="calcDiff()">
+      <input class="form-input" id="round-gross" type="number" min="60" max="110" placeholder="e.g. 88" oninput="calcDiff()">
     </div>
     <div id="diff-preview" style="display:none;text-align:center;padding:8px;margin-bottom:10px;background:var(--surface2);border-radius:8px;font-size:13px;"></div>
     <div class="form-group">
@@ -1044,6 +1044,20 @@ async function submitRound() {
     toast('Please fill in all required fields', true); return;
   }
 
+  // Score range check
+  const score = parseInt(gross);
+  if (score < 60 || score > 110) {
+    toast('Score must be between 60 and 110', true); return;
+  }
+
+  // Duplicate check — same user, course and date
+  const duplicate = STATE.myRounds.find(r =>
+    r.courseId === courseId && r.datePlayed === datePlayed
+  );
+  if (duplicate) {
+    if (!confirm(`You already have a round at ${duplicate.courseName} on ${formatDate(datePlayed)}. Save anyway?`)) return;
+  }
+
   const course = STATE.courses.find(c => c.courseId === courseId);
   const tee    = STATE.tees.find(t => t.teeId === teeId);
 
@@ -1064,7 +1078,34 @@ async function submitRound() {
     toast('Round saved! ⛳');
     await loadAll();
   } catch(e) {
-    toast('Error saving round: ' + e.message, true);
+    if (e.message && e.message.startsWith('DUPLICATE:')) {
+      hideLoader();
+      if (confirm(`A round at this course on this date already exists. Save anyway?`)) {
+        // Retry with a forced unique roundId to bypass duplicate check
+        showLoader();
+        try {
+          await apiPost('saveRound', {
+            roundId: 'round_' + Date.now() + '_override',
+            userName:     STATE.user.userName,
+            courseId, teeId,
+            courseName:   course.courseName,
+            teeName:      tee.teeName,
+            datePlayed,
+            grossScore:   gross,
+            courseRating: tee.courseRating,
+            slopeRating:  tee.slopeRating,
+            notes: document.getElementById('round-notes').value,
+          });
+          closeModal('modal-round');
+          toast('Round saved! ⛳');
+          await loadAll();
+        } catch(e2) {
+          toast('Error saving round: ' + e2.message, true);
+        }
+      }
+    } else {
+      toast('Error saving round: ' + e.message, true);
+    }
   }
   hideLoader();
 }
