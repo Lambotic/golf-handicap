@@ -720,11 +720,9 @@ function apiGet(action, params = {}) {
 }
 
 function apiPost(action, body = {}) {
-  return fetch(`${API_URL}?action=${action}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(body),
-  })
+  // Send everything as GET params to avoid CORS preflight issues with Apps Script
+  const qs = new URLSearchParams({ action, payload: JSON.stringify(body) }).toString();
+  return fetch(`${API_URL}?${qs}`)
     .then(r => r.json())
     .then(data => { if (!data.ok) throw new Error(data.error || 'API error'); return data; });
 }
