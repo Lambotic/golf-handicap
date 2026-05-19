@@ -412,6 +412,39 @@
         <div class="handicap-value" id="hcp-value">—</div>
         <div class="handicap-sub" id="hcp-sub">No rounds recorded yet</div>
         <div class="rounds-used" id="hcp-rounds-used"></div>
+        <div id="hcp-home-course" style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.15);display:none;">
+          <div style="font-size:11px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;opacity:.6;margin-bottom:4px;">Home Course Handicap</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:16px;">
+            <div style="text-align:center;">
+              <div id="hcp-home-value" style="font-family:'DM Serif Display',serif;font-size:36px;color:var(--gold-l);line-height:1;">—</div>
+              <div id="hcp-home-name" style="font-size:12px;opacity:.7;margin-top:2px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Course Handicap Lookup -->
+      <div class="card" id="course-hcp-lookup">
+        <div class="card-title"><span class="dot"></span> Course Handicap Lookup</div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Course</label>
+            <select class="form-select" id="lookup-course" onchange="loadLookupTees()">
+              <option value="">— Select —</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Tee</label>
+            <select class="form-select" id="lookup-tee" onchange="calcCourseHandicap()">
+              <option value="">— Select —</option>
+            </select>
+          </div>
+        </div>
+        <div id="lookup-result" style="display:none;margin-top:14px;text-align:center;background:var(--surface2);border-radius:10px;padding:14px;border:1px solid var(--border);">
+          <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;">Course Handicap</div>
+          <div id="lookup-hcp-value" style="font-family:'DM Serif Display',serif;font-size:48px;color:var(--grass);line-height:1;">—</div>
+          <div id="lookup-hcp-detail" style="font-size:12px;color:var(--text-3);margin-top:4px;"></div>
+        </div>
       </div>
 
       <p class="section-heading">Recent Rounds</p>
@@ -791,11 +824,33 @@ function renderHome() {
       sub.innerHTML = `<span class="badge badge-green">Full index</span> &nbsp;Best 4 of last 10`;
       used.textContent = `Best ${hcp.roundsUsed} of ${hcp.totalRounds} rounds used`;
     }
+
+    // Show home course handicap if set
+    const user = STATE.user;
+    const homeTee = user && user.homeTeeId ? STATE.tees.find(t => t.teeId === user.homeTeeId) : null;
+    const homeCourse = user && user.homeCourse ? STATE.courses.find(c => c.courseId === user.homeCourse) : null;
+    const homeBlock = document.getElementById('hcp-home-course');
+    if (homeTee && homeCourse) {
+      const courseHcp = Math.round(hcp.handicapIndex * (parseFloat(homeTee.slopeRating) / 113));
+      document.getElementById('hcp-home-value').textContent = courseHcp;
+      document.getElementById('hcp-home-name').textContent = `${homeCourse.courseName} · ${homeTee.teeName}`;
+      homeBlock.style.display = 'block';
+    } else {
+      homeBlock.style.display = 'none';
+    }
   } else {
     el.textContent = '—';
     sub.textContent = `No rounds recorded yet`;
     used.textContent = '';
+    document.getElementById('hcp-home-course').style.display = 'none';
   }
+
+  // Populate course handicap lookup dropdowns
+  const lookupCourse = document.getElementById('lookup-course');
+  const currentVal = lookupCourse.value;
+  lookupCourse.innerHTML = '<option value="">— Select —</option>' +
+    STATE.courses.map(c => `<option value="${c.courseId}">${c.courseName}</option>`).join('');
+  if (currentVal) { lookupCourse.value = currentVal; loadLookupTees(); }
 
   const list = document.getElementById('recent-rounds-list');
   if (!STATE.myRounds.length) {
@@ -817,6 +872,33 @@ function renderHome() {
       <button class="round-del" onclick="deleteRound('${r.roundId}')" title="Delete round">✕</button>
     </div>`;
   }).join('');
+}
+
+function loadLookupTees() {
+  const courseId = document.getElementById('lookup-course').value;
+  const sel = document.getElementById('lookup-tee');
+  const tees = STATE.tees.filter(t => t.courseId === courseId);
+  sel.innerHTML = '<option value="">— Select —</option>' +
+    tees.map(t => `<option value="${t.teeId}" data-slope="${t.slopeRating}" data-rating="${t.courseRating}" data-par="${t.par}">${t.teeName}</option>`).join('');
+  document.getElementById('lookup-result').style.display = 'none';
+}
+
+function calcCourseHandicap() {
+  const hcp = STATE.handicap;
+  const sel = document.getElementById('lookup-tee');
+  const opt = sel.options[sel.selectedIndex];
+  const result = document.getElementById('lookup-result');
+  if (!opt || !opt.dataset.slope || !hcp || hcp.handicapIndex === null) {
+    result.style.display = 'none'; return;
+  }
+  const slope = parseFloat(opt.dataset.slope);
+  const rating = parseFloat(opt.dataset.rating);
+  const par = parseFloat(opt.dataset.par);
+  const courseHcp = Math.round(hcp.handicapIndex * (slope / 113));
+  document.getElementById('lookup-hcp-value').textContent = courseHcp;
+  document.getElementById('lookup-hcp-detail').textContent =
+    `Index ${hcp.handicapIndex} × Slope ${slope} ÷ 113 · Par ${par} · Rating ${rating}`;
+  result.style.display = 'block';
 }
 
 function renderLeaderboard(handicaps) {
