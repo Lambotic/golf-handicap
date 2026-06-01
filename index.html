@@ -521,6 +521,85 @@
       </div>
     </div>
 
+    <!-- ADMIN PAGE -->
+    <div class="page" id="page-admin">
+      <p class="section-heading">Admin Panel</p>
+
+      <!-- Add Round for Any User -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> Add Round for User</div>
+        <div class="form-group">
+          <label class="form-label">Player</label>
+          <select class="form-select" id="admin-round-user"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date Played</label>
+          <input class="form-input" id="admin-round-date" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Course</label>
+          <select class="form-select" id="admin-round-course" onchange="loadAdminRoundTees()">
+            <option value="">— Select course —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tee</label>
+          <select class="form-select" id="admin-round-tee" onchange="updateAdminRoundInfo()">
+            <option value="">— Select tee —</option>
+          </select>
+        </div>
+        <div id="admin-round-info" style="display:none;margin-bottom:14px;">
+          <div style="background:var(--surface2);border-radius:10px;padding:12px;font-size:13px;border:1px solid var(--border);">
+            <div style="display:flex;gap:20px;">
+              <span>Rating: <strong id="ari-rating">—</strong></span>
+              <span>Slope: <strong id="ari-slope">—</strong></span>
+              <span>Par: <strong id="ari-par">—</strong></span>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Gross Score (Double bogey max)</label>
+          <input class="form-input" id="admin-round-gross" type="number" min="60" max="110" placeholder="e.g. 88">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes (optional)</label>
+          <input class="form-input" id="admin-round-notes" type="text" placeholder="Added by admin">
+        </div>
+        <button class="btn btn-primary" onclick="adminSaveRound()">Save Round</button>
+      </div>
+
+      <!-- All Rounds Management -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> All Rounds</div>
+        <div class="form-group">
+          <label class="form-label">Filter by Player</label>
+          <select class="form-select" id="admin-filter-user" onchange="renderAdminRounds()">
+            <option value="">All Players</option>
+          </select>
+        </div>
+        <div id="admin-rounds-list">
+          <div class="empty"><div class="empty-text">Loading…</div></div>
+        </div>
+      </div>
+
+      <!-- Manage Users -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> Manage Users</div>
+        <div id="admin-users-list">
+          <div class="empty"><div class="empty-text">Loading…</div></div>
+        </div>
+      </div>
+
+      <!-- Manage Courses -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> Manage Courses</div>
+        <div id="admin-courses-list">
+          <div class="empty"><div class="empty-text">Loading…</div></div>
+        </div>
+      </div>
+
+    </div>
+
   </div><!-- end scroll-area -->
 
   <!-- BOTTOM NAV -->
@@ -545,7 +624,25 @@
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
       Profile
     </button>
+    <button class="nav-btn" id="nav-admin" onclick="showAdminWithPin()">
+      <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Admin
+    </button>
   </nav>
+</div>
+
+<!-- ===== ADMIN PIN MODAL ===== -->
+<div class="modal-overlay" id="modal-pin">
+  <div class="modal" style="text-align:center;">
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="text-align:center;">Admin Access</div>
+    <p style="color:var(--text-3);font-size:13px;margin-bottom:18px;">Enter your PIN to continue</p>
+    <input class="form-input" id="admin-pin" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="PIN" style="text-align:center;font-size:24px;letter-spacing:8px;margin-bottom:16px;">
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-pin')">Cancel</button>
+      <button class="btn btn-primary" style="flex:2" onclick="checkAdminPin()">Enter</button>
+    </div>
+  </div>
 </div>
 
 <!-- ===== ADD ROUND MODAL ===== -->
@@ -769,16 +866,18 @@ function apiPost(action, body = {}) {
 async function loadAll() {
   showLoader();
   try {
-    const [coursesRes, teesRes, roundsRes, hcpRes] = await Promise.all([
+    const [coursesRes, teesRes, roundsRes, hcpRes, usersRes] = await Promise.all([
       apiGet('getCourses'),
       apiGet('getTees'),
       apiGet('getRounds', { userName: STATE.user.userName }),
       apiGet('getHandicap', { userName: STATE.user.userName }),
+      apiGet('getUsers'),
     ]);
     STATE.courses = coursesRes.courses || [];
     STATE.tees = teesRes.tees || [];
     STATE.myRounds = roundsRes.rounds || [];
     STATE.handicap = hcpRes;
+    STATE.allUsers = usersRes.users || [];
     renderHome();
   } catch(e) {
     toast('Failed to load data: ' + e.message, true);
@@ -975,6 +1074,7 @@ function showPage(name) {
   if (name === 'leaderboard') loadLeaderboard();
   if (name === 'courses') loadCourses();
   if (name === 'profile') populateProfileForm();
+  if (name === 'admin') loadAdminPage();
 }
 
 // ---- ADD ROUND ----
@@ -1309,7 +1409,267 @@ function renderProfileStats() {
     <div style="font-size:12px;color:var(--text-3);margin-top:4px;">${STATE.handicap && STATE.handicap.isInterim ? `Interim: best ${STATE.handicap.roundsUsed} of ${STATE.handicap.totalRounds} · ${STATE.handicap.roundsNeeded} more round${STATE.handicap.roundsNeeded!==1?'s':''} for full index` : 'Full index: best 4 of last 10'}</div>`;
 }
 
-// ---- MODAL HELPERS ----
+// ---- ADMIN ----
+
+const ADMIN_PIN = '2232110';
+let adminUnlocked = false;
+
+function showAdminWithPin() {
+  if (adminUnlocked) {
+    showPage('admin');
+    return;
+  }
+  document.getElementById('admin-pin').value = '';
+  openModal('modal-pin');
+}
+
+function checkAdminPin() {
+  const entered = document.getElementById('admin-pin').value.trim();
+  if (entered === ADMIN_PIN) {
+    adminUnlocked = true;
+    closeModal('modal-pin');
+    showPage('admin');
+  } else {
+    toast('Incorrect PIN', true);
+    document.getElementById('admin-pin').value = '';
+  }
+}
+
+async function loadAdminPage() {
+  // Populate all user dropdowns
+  const users = STATE.allUsers || [];
+  const userOpts = users.map(u => `<option value="${u.userName}">${u.displayName || u.userName}</option>`).join('');
+  document.getElementById('admin-round-user').innerHTML = userOpts;
+  document.getElementById('admin-filter-user').innerHTML = '<option value="">All Players</option>' + userOpts;
+
+  // Populate course dropdown
+  const courseOpts = '<option value="">— Select course —</option>' +
+    STATE.courses.map(c => `<option value="${c.courseId}">${c.courseName}</option>`).join('');
+  document.getElementById('admin-round-course').innerHTML = courseOpts;
+
+  // Default date to today
+  document.getElementById('admin-round-date').value = new Date().toISOString().split('T')[0];
+
+  // Load all rounds
+  try {
+    const res = await apiGet('getAllRounds');
+    STATE.allRounds = res.rounds || [];
+  } catch(e) {}
+
+  renderAdminRounds();
+  renderAdminUsers();
+  renderAdminCourses();
+}
+
+function loadAdminRoundTees() {
+  const courseId = document.getElementById('admin-round-course').value;
+  const sel = document.getElementById('admin-round-tee');
+  const tees = STATE.tees.filter(t => t.courseId === courseId);
+  sel.innerHTML = '<option value="">— Select tee —</option>' +
+    tees.map(t => `<option value="${t.teeId}" data-rating="${t.courseRating}" data-slope="${t.slopeRating}" data-par="${t.par}">${t.teeName} — Rating: ${t.courseRating} / Slope: ${t.slopeRating}</option>`).join('');
+  document.getElementById('admin-round-info').style.display = 'none';
+}
+
+function updateAdminRoundInfo() {
+  const sel = document.getElementById('admin-round-tee');
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt || !opt.dataset.rating) { document.getElementById('admin-round-info').style.display = 'none'; return; }
+  document.getElementById('ari-rating').textContent = opt.dataset.rating;
+  document.getElementById('ari-slope').textContent  = opt.dataset.slope;
+  document.getElementById('ari-par').textContent    = opt.dataset.par;
+  document.getElementById('admin-round-info').style.display = 'block';
+}
+
+async function adminSaveRound() {
+  const userName   = document.getElementById('admin-round-user').value;
+  const courseId   = document.getElementById('admin-round-course').value;
+  const teeId      = document.getElementById('admin-round-tee').value;
+  const datePlayed = document.getElementById('admin-round-date').value;
+  const gross      = document.getElementById('admin-round-gross').value;
+
+  if (!userName || !courseId || !teeId || !datePlayed || !gross) {
+    toast('Please fill in all fields', true); return;
+  }
+  const score = parseInt(gross);
+  if (score < 60 || score > 110) { toast('Score must be between 60 and 110', true); return; }
+
+  const course = STATE.courses.find(c => c.courseId === courseId);
+  const tee    = STATE.tees.find(t => t.teeId === teeId);
+
+  showLoader();
+  try {
+    await apiPost('saveRound', {
+      userName, courseId, teeId,
+      courseName:   course.courseName,
+      teeName:      tee.teeName,
+      datePlayed, grossScore: gross,
+      courseRating: tee.courseRating,
+      slopeRating:  tee.slopeRating,
+      notes: document.getElementById('admin-round-notes').value || 'Added by admin',
+    });
+    toast('Round saved for ' + userName + '! ⛳');
+    document.getElementById('admin-round-gross').value = '';
+    document.getElementById('admin-round-notes').value = '';
+    const res = await apiGet('getAllRounds');
+    STATE.allRounds = res.rounds || [];
+    renderAdminRounds();
+  } catch(e) {
+    toast('Error: ' + e.message, true);
+  }
+  hideLoader();
+}
+
+function renderAdminRounds() {
+  const filterUser = document.getElementById('admin-filter-user').value;
+  const rounds = filterUser
+    ? STATE.allRounds.filter(r => r.userName === filterUser)
+    : STATE.allRounds;
+  const list = document.getElementById('admin-rounds-list');
+  if (!rounds.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-text">No rounds found</div></div>'; return;
+  }
+  list.innerHTML = rounds.slice(0,30).map(r => `
+    <div class="round-item">
+      <div class="round-left">
+        <div class="round-course">${r.courseName}</div>
+        <div class="round-meta">${r.userName} · ${r.teeName} · ${formatDate(r.datePlayed)}</div>
+      </div>
+      <div class="round-right">
+        <div class="round-score">${r.grossScore}</div>
+        <div class="round-diff">Diff: ${r.scoreDifferential}</div>
+      </div>
+      <button class="round-edit" onclick="adminEditRound('${r.roundId}')" title="Edit">✏️</button>
+      <button class="round-del" onclick="adminDeleteRound('${r.roundId}', '${r.userName}')" title="Delete">✕</button>
+    </div>`).join('');
+}
+
+async function adminDeleteRound(roundId, userName) {
+  if (!confirm(`Delete this round for ${userName}?`)) return;
+  showLoader();
+  try {
+    await apiGet('deleteRound', { roundId });
+    toast('Round deleted');
+    const res = await apiGet('getAllRounds');
+    STATE.allRounds = res.rounds || [];
+    renderAdminRounds();
+  } catch(e) {
+    toast('Error: ' + e.message, true);
+  }
+  hideLoader();
+}
+
+function adminEditRound(roundId) {
+  // Find round in allRounds and open the standard edit modal
+  const r = STATE.allRounds.find(r => r.roundId === roundId);
+  if (!r) { toast('Round not found', true); return; }
+
+  document.getElementById('modal-round-title').textContent = 'Edit Round (Admin)';
+  document.getElementById('round-edit-id').value = roundId;
+
+  const sel = document.getElementById('round-course');
+  sel.innerHTML = '<option value="">— Select course —</option>' +
+    STATE.courses.map(c => `<option value="${c.courseId}">${c.courseName}</option>`).join('');
+  sel.value = r.courseId;
+  loadRoundTees();
+
+  setTimeout(() => {
+    document.getElementById('round-tee').value   = r.teeId;
+    updateRoundInfo();
+    document.getElementById('round-date').value  = r.datePlayed;
+    document.getElementById('round-gross').value = r.grossScore;
+    document.getElementById('round-notes').value = r.notes || '';
+    calcDiff();
+  }, 100);
+
+  openModal('modal-round');
+}
+
+function renderAdminUsers() {
+  const list = document.getElementById('admin-users-list');
+  const users = STATE.allUsers || [];
+  if (!users.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-text">No users found</div></div>'; return;
+  }
+  list.innerHTML = users.map(u => `
+    <div class="round-item">
+      <div class="round-left">
+        <div class="round-course">${u.displayName || u.userName}</div>
+        <div class="round-meta">@${u.userName}</div>
+      </div>
+      <button class="round-del" onclick="adminDeleteUser('${u.userName}', '${u.displayName || u.userName}')" title="Delete user">✕</button>
+    </div>`).join('');
+}
+
+async function adminDeleteUser(userName, displayName) {
+  if (!confirm(`Delete user "${displayName}" and ALL their rounds? This cannot be undone.`)) return;
+  showLoader();
+  try {
+    await apiGet('deleteUser', { userName });
+    toast('User deleted');
+    const res = await apiGet('getUsers');
+    STATE.allUsers = res.users || [];
+    renderAdminUsers();
+    // Refresh leaderboard user dropdowns
+    loadAdminPage();
+  } catch(e) {
+    toast('Error: ' + e.message, true);
+  }
+  hideLoader();
+}
+
+function renderAdminCourses() {
+  const list = document.getElementById('admin-courses-list');
+  if (!STATE.courses.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-text">No courses found</div></div>'; return;
+  }
+  list.innerHTML = STATE.courses.map(c => {
+    const courseTees = STATE.tees.filter(t => t.courseId === c.courseId);
+    const teeItems = courseTees.map(t => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+        <span style="font-size:13px;color:var(--text-2)">${t.teeName} — R:${t.courseRating} S:${t.slopeRating} P:${t.par}</span>
+        <button class="round-del" onclick="adminDeleteTee('${t.teeId}','${c.courseId}')" title="Delete tee">✕</button>
+      </div>`).join('');
+    return `<div class="course-item">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="course-name">${c.courseName}</div>
+        <button class="round-del" onclick="adminDeleteCourse('${c.courseId}','${c.courseName}')" title="Delete course">✕</button>
+      </div>
+      <div class="course-meta">${[c.city,c.state].filter(Boolean).join(', ')} · ${c.holes} holes</div>
+      <div style="margin-top:8px;">${teeItems}</div>
+    </div>`;
+  }).join('');
+}
+
+async function adminDeleteCourse(courseId, courseName) {
+  if (!confirm(`Delete course "${courseName}" and all its tees?`)) return;
+  showLoader();
+  try {
+    await apiGet('deleteCourse', { courseId });
+    toast('Course deleted');
+    const [cRes, tRes] = await Promise.all([apiGet('getCourses'), apiGet('getTees')]);
+    STATE.courses = cRes.courses || [];
+    STATE.tees = tRes.tees || [];
+    renderAdminCourses();
+  } catch(e) {
+    toast('Error: ' + e.message, true);
+  }
+  hideLoader();
+}
+
+async function adminDeleteTee(teeId, courseId) {
+  if (!confirm('Delete this tee set?')) return;
+  showLoader();
+  try {
+    await apiGet('deleteTee', { teeId });
+    toast('Tee deleted');
+    const tRes = await apiGet('getTees');
+    STATE.tees = tRes.tees || [];
+    renderAdminCourses();
+  } catch(e) {
+    toast('Error: ' + e.message, true);
+  }
+  hideLoader();
+}
 
 function openModal(id) {
   document.getElementById(id).classList.add('show');
