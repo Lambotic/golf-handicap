@@ -412,6 +412,7 @@
     </div>
     <button class="btn btn-gold" onclick="checkLoginPin()">Sign In →</button>
     <p style="color:rgba(255,255,255,0.55);font-size:12px;margin-top:12px;text-align:center;">Not you? <span style="text-decoration:underline;cursor:pointer;" onclick="switchUser()">Switch user</span></p>
+    <p style="color:rgba(255,255,255,0.55);font-size:12px;margin-top:6px;text-align:center;"><span style="text-decoration:underline;cursor:pointer;" onclick="forgotPin()">Forgot PIN?</span></p>
   </div>
 </div>
 
@@ -884,6 +885,48 @@ function switchUser() {
   localStorage.removeItem('golf_pin');
   document.getElementById('pin-screen').style.display = 'none';
   document.getElementById('setup-screen').classList.add('show');
+}
+
+async function forgotPin() {
+  const name = prompt('Enter your full name as registered:');
+  if (!name) return;
+
+  showLoader();
+  try {
+    const usersRes = await apiGet('getUsers');
+    const existing = (usersRes.users || []).find(u =>
+      (u.displayName || '').toLowerCase() === name.trim().toLowerCase()
+    );
+    hideLoader();
+
+    if (!existing) {
+      toast('Name not found. Check spelling or use Switch User.', true);
+      return;
+    }
+
+    // Name matched — let them set a new PIN
+    const newPin = prompt('Name verified! Enter a new 4-digit PIN:');
+    if (!newPin) return;
+    if (!/^\d{4}$/.test(newPin)) { toast('PIN must be exactly 4 digits', true); return; }
+    const confirm2 = prompt('Confirm your new PIN:');
+    if (newPin !== confirm2) { toast('PINs do not match', true); return; }
+
+    const user = { userName: existing.userName, displayName: existing.displayName || name };
+    localStorage.setItem('golf_user', JSON.stringify(user));
+    localStorage.setItem('golf_pin', newPin);
+    toast('PIN reset! Signing you in…');
+
+    setTimeout(() => {
+      document.getElementById('pin-screen').style.display = 'none';
+      STATE.user = user;
+      document.getElementById('header-username').textContent = user.displayName;
+      loadAll().then(() => populateProfileForm());
+    }, 800);
+
+  } catch(e) {
+    hideLoader();
+    toast('Could not connect: ' + e.message, true);
+  }
 }
 
 async function completeSetup() {
