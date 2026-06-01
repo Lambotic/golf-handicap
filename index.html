@@ -865,17 +865,26 @@ function showPinLogin(name) {
 }
 
 function checkLoginPin() {
-  const entered = document.getElementById('login-pin').value.trim();
+  const pinInput = document.getElementById('login-pin');
+  const entered = pinInput.value.trim();
   const savedPin = localStorage.getItem('golf_pin');
+
+  if (!entered) return;
+
   if (entered === savedPin) {
-    document.getElementById('pin-screen').style.display = 'none';
+    // Clear and hide immediately to prevent double-tap
+    pinInput.value = '';
+    const pinScreen = document.getElementById('pin-screen');
+    pinScreen.style.display = 'none';
+
     const user = JSON.parse(localStorage.getItem('golf_user'));
     STATE.user = user;
     document.getElementById('header-username').textContent = user.displayName || user.userName;
     loadAll().then(() => populateProfileForm());
   } else {
     toast('Incorrect PIN', true);
-    document.getElementById('login-pin').value = '';
+    pinInput.value = '';
+    pinInput.focus();
   }
 }
 
