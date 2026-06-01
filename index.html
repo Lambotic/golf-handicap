@@ -372,22 +372,47 @@
 <body>
 
 <!-- ===== SETUP SCREEN ===== -->
+<!-- ===== FIRST LAUNCH SCREEN (new users) ===== -->
 <div id="setup-screen">
   <div class="setup-logo">⛳</div>
   <h1 style="font-family:'DM Serif Display',serif;color:#fff;font-size:28px;margin-bottom:4px;">Handicap Tracker</h1>
   <p class="setup-tagline">Track your game with friends</p>
-  <div class="setup-card">
+
+  <!-- Step 1: Username + Name -->
+  <div class="setup-card" id="setup-step-1">
+    <p style="color:rgba(255,255,255,0.8);font-size:13px;margin-bottom:16px;">First time? Create your profile.</p>
     <div class="form-group">
       <label class="form-label">Your Name</label>
       <input class="form-input" id="setup-name" type="text" placeholder="e.g. John Smith" autocomplete="name">
     </div>
     <div class="form-group">
-      <label class="form-label">Username (no spaces)</label>
-      <input class="form-input" id="setup-username" type="text" placeholder="e.g. johnsmith" autocomplete="username">
+      <label class="form-label">Choose a 4-digit PIN</label>
+      <input class="form-input" id="setup-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" style="letter-spacing:8px;font-size:22px;text-align:center;">
     </div>
-    <button class="btn btn-gold" onclick="completeSetup()">Start Tracking →</button>
+    <div class="form-group">
+      <label class="form-label">Confirm PIN</label>
+      <input class="form-input" id="setup-pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" style="letter-spacing:8px;font-size:22px;text-align:center;">
+    </div>
+    <button class="btn btn-gold" onclick="completeSetup()">Create Profile →</button>
+    <p style="color:rgba(255,255,255,0.55);font-size:12px;margin-top:12px;text-align:center;">Already registered? <span style="text-decoration:underline;cursor:pointer;" onclick="showPinLogin()">Sign in with PIN</span></p>
   </div>
-  <p class="setup-note">Your data is shared in a group Google Sheet.<br>Each person signs in with their own username.</p>
+
+  <p class="setup-note">Your data is shared in a group Google Sheet.<br>Each person uses their own username and PIN.</p>
+</div>
+
+<!-- ===== PIN LOGIN SCREEN (returning users) ===== -->
+<div id="pin-screen" style="display:none;position:fixed;inset:0;background:var(--grass);z-index:500;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;">
+  <div class="setup-logo">⛳</div>
+  <h1 style="font-family:'DM Serif Display',serif;color:#fff;font-size:28px;margin-bottom:4px;">Welcome back</h1>
+  <p id="pin-welcome-name" style="color:rgba(255,255,255,0.7);margin-bottom:32px;font-size:15px;"></p>
+  <div class="setup-card">
+    <div class="form-group">
+      <label class="form-label">Enter your PIN</label>
+      <input class="form-input" id="login-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" style="letter-spacing:8px;font-size:28px;text-align:center;" onkeydown="if(event.key==='Enter')checkLoginPin()">
+    </div>
+    <button class="btn btn-gold" onclick="checkLoginPin()">Sign In →</button>
+    <p style="color:rgba(255,255,255,0.55);font-size:12px;margin-top:12px;text-align:center;">Not you? <span style="text-decoration:underline;cursor:pointer;" onclick="switchUser()">Switch user</span></p>
+  </div>
 </div>
 
 <!-- ===== LOADING ===== -->
@@ -513,6 +538,7 @@
           <select class="form-select" id="profile-tee"></select>
         </div>
         <button class="btn btn-primary" onclick="saveProfile()">Save Settings</button>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="changePin()">Change PIN</button>
       </div>
 
       <p class="section-heading">My Stats</p>
@@ -812,28 +838,87 @@ let STATE = {
 
 window.addEventListener('DOMContentLoaded', async () => {
   const saved = localStorage.getItem('golf_user');
-  if (!saved) {
+  const savedPin = localStorage.getItem('golf_pin');
+  if (!saved || !savedPin) {
+    // No profile saved — show first launch screen
     document.getElementById('setup-screen').classList.add('show');
   } else {
-    STATE.user = JSON.parse(saved);
-    document.getElementById('header-username').textContent = STATE.user.displayName || STATE.user.userName;
-    await loadAll();
-    populateProfileForm();
+    // Profile exists — show PIN login
+    const user = JSON.parse(saved);
+    showPinLogin(user.displayName || user.userName);
   }
 });
 
+function showPinLogin(name) {
+  const saved = localStorage.getItem('golf_user');
+  if (!name && saved) {
+    const user = JSON.parse(saved);
+    name = user.displayName || user.userName;
+  }
+  document.getElementById('setup-screen').classList.remove('show');
+  document.getElementById('pin-welcome-name').textContent = name || '';
+  document.getElementById('login-pin').value = '';
+  const pinScreen = document.getElementById('pin-screen');
+  pinScreen.style.display = 'flex';
+  setTimeout(() => document.getElementById('login-pin').focus(), 300);
+}
+
+function checkLoginPin() {
+  const entered = document.getElementById('login-pin').value.trim();
+  const savedPin = localStorage.getItem('golf_pin');
+  if (entered === savedPin) {
+    document.getElementById('pin-screen').style.display = 'none';
+    const user = JSON.parse(localStorage.getItem('golf_user'));
+    STATE.user = user;
+    document.getElementById('header-username').textContent = user.displayName || user.userName;
+    loadAll().then(() => populateProfileForm());
+  } else {
+    toast('Incorrect PIN', true);
+    document.getElementById('login-pin').value = '';
+  }
+}
+
+function switchUser() {
+  // Clear saved user and show first launch
+  localStorage.removeItem('golf_user');
+  localStorage.removeItem('golf_pin');
+  document.getElementById('pin-screen').style.display = 'none';
+  document.getElementById('setup-screen').classList.add('show');
+}
+
 async function completeSetup() {
-  const name = document.getElementById('setup-name').value.trim();
-  const username = document.getElementById('setup-username').value.trim().replace(/\s+/g,'').toLowerCase();
-  if (!name || !username) { toast('Please enter your name and username', true); return; }
-  const user = { userName: username, displayName: name };
+  const name     = document.getElementById('setup-name').value.trim();
+  const pin      = document.getElementById('setup-pin').value.trim();
+  const pin2     = document.getElementById('setup-pin2').value.trim();
+
+  if (!name) { toast('Please enter your name', true); return; }
+  if (pin.length !== 4 || !/^\d{4}$/.test(pin)) { toast('PIN must be exactly 4 digits', true); return; }
+  if (pin !== pin2) { toast('PINs do not match', true); return; }
+
   showLoader();
   try {
-    await apiPost('saveUser', user);
+    // Check if this name already exists in the Sheet
+    const usersRes = await apiGet('getUsers');
+    const existing = (usersRes.users || []).find(u =>
+      (u.displayName || '').toLowerCase() === name.toLowerCase()
+    );
+
+    let user;
+    if (existing) {
+      // Use the existing username from the Sheet
+      user = { userName: existing.userName, displayName: existing.displayName || name };
+    } else {
+      // New user — auto-generate username from name
+      const username = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      user = { userName: username, displayName: name };
+      await apiPost('saveUser', user);
+    }
+
     localStorage.setItem('golf_user', JSON.stringify(user));
+    localStorage.setItem('golf_pin', pin);
     STATE.user = user;
     document.getElementById('setup-screen').classList.remove('show');
-    document.getElementById('header-username').textContent = name;
+    document.getElementById('header-username').textContent = user.displayName;
     await loadAll();
     populateProfileForm();
   } catch(e) {
@@ -1380,6 +1465,16 @@ async function saveProfile() {
     toast('Error: ' + e.message, true);
   }
   hideLoader();
+}
+
+function changePin() {
+  const newPin = prompt('Enter your new 4-digit PIN:');
+  if (!newPin) return;
+  if (!/^\d{4}$/.test(newPin)) { toast('PIN must be exactly 4 digits', true); return; }
+  const confirm2 = prompt('Confirm your new PIN:');
+  if (newPin !== confirm2) { toast('PINs do not match', true); return; }
+  localStorage.setItem('golf_pin', newPin);
+  toast('PIN updated!');
 }
 
 function showUserSettings() { showPage('profile'); }
