@@ -224,8 +224,10 @@
   .round-right { text-align: right; flex-shrink: 0; }
   .round-score { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--grass); }
   .round-diff { font-size: 12px; color: var(--text-3); }
-  .round-del { background: none; border: none; cursor: pointer; color: var(--text-3); padding: 4px 8px; font-size: 16px; margin-left: 8px; }
+  .round-del { background: none; border: none; cursor: pointer; color: var(--text-3); padding: 4px 8px; font-size: 16px; margin-left: 4px; }
   .round-del:hover { color: var(--danger); }
+  .round-edit { background: none; border: none; cursor: pointer; color: var(--text-3); padding: 4px 8px; font-size: 16px; margin-left: 4px; }
+  .round-edit:hover { color: var(--grass); }
 
   /* ===== LEADERBOARD ===== */
   .leaderboard-item {
@@ -550,7 +552,8 @@
 <div class="modal-overlay" id="modal-round">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Log a Round</div>
+    <div class="modal-title" id="modal-round-title">Log a Round</div>
+    <input type="hidden" id="round-edit-id" value="">
     <div class="form-group">
       <label class="form-label">Date Played</label>
       <input class="form-input" id="round-date" type="date">
@@ -870,6 +873,7 @@ function renderHome() {
         <div class="round-score">${r.grossScore}</div>
         <div class="round-diff ${cls}">Diff: ${r.scoreDifferential}</div>
       </div>
+      <button class="round-edit" onclick="editRound('${r.roundId}')" title="Edit round">✏️</button>
       <button class="round-del" onclick="deleteRound('${r.roundId}')" title="Delete round">✕</button>
     </div>`;
   }).join('');
@@ -976,21 +980,19 @@ function showPage(name) {
 // ---- ADD ROUND ----
 
 function showAddRound() {
-  // Default date to today
-  const today = new Date();
-  const fmt = today.toISOString().split('T')[0];
-  document.getElementById('round-date').value = fmt;
+  document.getElementById('modal-round-title').textContent = 'Log a Round';
+  document.getElementById('round-edit-id').value = '';
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('round-date').value = today;
   document.getElementById('round-notes').value = '';
   document.getElementById('round-gross').value = '';
   document.getElementById('round-info').style.display = 'none';
   document.getElementById('diff-preview').style.display = 'none';
 
-  // Populate course dropdown
   const sel = document.getElementById('round-course');
   sel.innerHTML = '<option value="">— Select course —</option>' +
     STATE.courses.map(c => `<option value="${c.courseId}">${c.courseName}</option>`).join('');
 
-  // Default to home course if set
   const user = STATE.user;
   if (user && user.homeCourse) {
     sel.value = user.homeCourse;
@@ -1000,6 +1002,34 @@ function showAddRound() {
       updateRoundInfo();
     }, 100);
   }
+  openModal('modal-round');
+}
+
+function editRound(roundId) {
+  const r = STATE.myRounds.find(r => r.roundId === roundId);
+  if (!r) { toast('Round not found', true); return; }
+
+  document.getElementById('modal-round-title').textContent = 'Edit Round';
+  document.getElementById('round-edit-id').value = roundId;
+
+  // Populate course dropdown
+  const sel = document.getElementById('round-course');
+  sel.innerHTML = '<option value="">— Select course —</option>' +
+    STATE.courses.map(c => `<option value="${c.courseId}">${c.courseName}</option>`).join('');
+  sel.value = r.courseId;
+
+  // Populate tees for the course
+  loadRoundTees();
+
+  // Set values after tees are loaded
+  setTimeout(() => {
+    document.getElementById('round-tee').value = r.teeId;
+    updateRoundInfo();
+    document.getElementById('round-date').value = r.datePlayed;
+    document.getElementById('round-gross').value = r.grossScore;
+    document.getElementById('round-notes').value = r.notes || '';
+    calcDiff();
+  }, 100);
 
   openModal('modal-round');
 }
@@ -1040,6 +1070,7 @@ async function submitRound() {
   const teeId      = document.getElementById('round-tee').value;
   const datePlayed = document.getElementById('round-date').value;
   const gross      = document.getElementById('round-gross').value;
+  const editId     = document.getElementById('round-edit-id').value;
 
   if (!courseId || !teeId || !datePlayed || !gross) {
     toast('Please fill in all required fields', true); return;
@@ -1051,9 +1082,9 @@ async function submitRound() {
     toast('Score must be between 60 and 110', true); return;
   }
 
-  // Duplicate check — same user, course and date
+  // Duplicate check — skip if editing the same round
   const duplicate = STATE.myRounds.find(r =>
-    r.courseId === courseId && r.datePlayed === datePlayed
+    r.courseId === courseId && r.datePlayed === datePlayed && r.roundId !== editId
   );
   if (duplicate) {
     if (!confirm(`You already have a round at ${duplicate.courseName} on ${formatDate(datePlayed)}. Save anyway?`)) return;
@@ -1065,6 +1096,7 @@ async function submitRound() {
   showLoader();
   try {
     await apiPost('saveRound', {
+      roundId:      editId || undefined,
       userName:     STATE.user.userName,
       courseId, teeId,
       courseName:   course.courseName,
@@ -1076,17 +1108,16 @@ async function submitRound() {
       notes: document.getElementById('round-notes').value,
     });
     closeModal('modal-round');
-    toast('Round saved! ⛳');
+    toast(editId ? 'Round updated! ⛳' : 'Round saved! ⛳');
     await loadAll();
   } catch(e) {
     if (e.message && e.message.startsWith('DUPLICATE:')) {
       hideLoader();
       if (confirm(`A round at this course on this date already exists. Save anyway?`)) {
-        // Retry with a forced unique roundId to bypass duplicate check
         showLoader();
         try {
           await apiPost('saveRound', {
-            roundId: 'round_' + Date.now() + '_override',
+            roundId: editId || ('round_' + Date.now() + '_override'),
             userName:     STATE.user.userName,
             courseId, teeId,
             courseName:   course.courseName,
@@ -1098,7 +1129,7 @@ async function submitRound() {
             notes: document.getElementById('round-notes').value,
           });
           closeModal('modal-round');
-          toast('Round saved! ⛳');
+          toast(editId ? 'Round updated! ⛳' : 'Round saved! ⛳');
           await loadAll();
         } catch(e2) {
           toast('Error saving round: ' + e2.message, true);
