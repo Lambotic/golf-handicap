@@ -469,9 +469,10 @@
       </div>
 
       <!-- Trend Chart -->
-      <div id="trend-card" class="card" style="display:none;padding:14px 18px;">
+      <div id="trend-card" class="card" style="padding:14px 18px;">
         <div class="card-title" style="margin-bottom:10px;"><span class="dot"></span> Handicap Trend</div>
-        <canvas id="trend-chart" height="120" style="width:100%;"></canvas>
+        <div id="trend-placeholder" style="text-align:center;color:var(--text-3);font-size:13px;padding:20px 0;">Play 2 more rounds to see your trend</div>
+        <canvas id="trend-chart" height="120" style="width:100%;display:none;"></canvas>
         <div id="trend-label" style="text-align:center;font-size:12px;color:var(--text-3);margin-top:8px;"></div>
       </div>
 
@@ -1110,8 +1111,8 @@ function renderHome() {
     STATE.courses.map(c => `<option value="${c.courseId}">${c.courseName}</option>`).join('');
   if (currentVal) { lookupCourse.value = currentVal; loadLookupTees(); }
 
-  // Render trend
-  renderTrend(STATE.myRounds);
+  // Render trend after layout is complete
+  setTimeout(() => renderTrend(STATE.myRounds), 100);
 
   const list = document.getElementById('recent-rounds-list');
   if (!STATE.myRounds.length) {
@@ -1840,17 +1841,21 @@ async function adminDeleteTee(teeId, courseId) {
 }
 
 function renderTrend(rounds) {
-  const arrowEl   = document.getElementById('hcp-trend-arrow');
-  const trendCard = document.getElementById('trend-card');
-  const trendLabel= document.getElementById('trend-label');
+  const arrowEl      = document.getElementById('hcp-trend-arrow');
+  const trendCard    = document.getElementById('trend-card');
+  const trendLabel   = document.getElementById('trend-label');
+  const canvas       = document.getElementById('trend-chart');
+  const placeholder  = document.getElementById('trend-placeholder');
 
   if (!rounds || rounds.length < 2) {
     arrowEl.style.display = 'none';
-    trendCard.style.display = 'none';
+    placeholder.style.display = 'block';
+    canvas.style.display = 'none';
+    trendLabel.textContent = '';
     return;
   }
 
-  // Sort oldest to newest for chart
+  // Sort oldest to newest
   const sorted = [...rounds].sort((a,b) => new Date(a.datePlayed) - new Date(b.datePlayed));
   const last10 = sorted.slice(-10);
 
@@ -1869,37 +1874,31 @@ function renderTrend(rounds) {
     return { date: last10[i].datePlayed, index: parseFloat(avg.toFixed(1)) };
   });
 
-  // Arrow — compare last two index values
+  // Arrow
   const prev = indexHistory[indexHistory.length - 2].index;
   const curr = indexHistory[indexHistory.length - 1].index;
   const diff = curr - prev;
-
   arrowEl.style.display = 'block';
-  if (diff < -0.4) {
-    arrowEl.textContent = '↓';
-    arrowEl.style.color = '#7cfc00';
-  } else if (diff > 0.4) {
-    arrowEl.textContent = '↑';
-    arrowEl.style.color = '#ff6b6b';
-  } else {
-    arrowEl.textContent = '→';
-    arrowEl.style.color = '#e8c45a';
-  }
+  if (diff < -0.4)      { arrowEl.textContent = '↓'; arrowEl.style.color = '#7cfc00'; }
+  else if (diff > 0.4)  { arrowEl.textContent = '↑'; arrowEl.style.color = '#ff6b6b'; }
+  else                  { arrowEl.textContent = '→'; arrowEl.style.color = '#e8c45a'; }
 
-  // Chart — only with 3+ rounds
+  // Chart needs 3+ rounds
   if (indexHistory.length < 3) {
-    trendCard.style.display = 'none';
+    placeholder.textContent = 'One more round to see your trend chart';
+    placeholder.style.display = 'block';
+    canvas.style.display = 'none';
     return;
   }
 
-  trendCard.style.display = 'block';
+  placeholder.style.display = 'none';
+  canvas.style.display = 'block';
 
-  const canvas = document.getElementById('trend-chart');
-  const ctx    = canvas.getContext('2d');
-  const W      = canvas.offsetWidth || 320;
-  const H      = 120;
+  const W = canvas.parentElement.clientWidth - 36 || 300;
+  const H = 120;
   canvas.width  = W;
   canvas.height = H;
+  const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, W, H);
 
   const values = indexHistory.map(p => p.index);
@@ -1927,11 +1926,11 @@ function renderTrend(rounds) {
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // Line color based on overall trend
+  // Line color
   const overallDiff = values[values.length-1] - values[0];
   const lineColor = overallDiff < -0.4 ? '#7cfc00' : overallDiff > 0.4 ? '#ff6b6b' : '#e8c45a';
 
-  // Draw line
+  // Line
   ctx.beginPath();
   ctx.moveTo(xPos(0), yPos(values[0]));
   values.forEach((v, i) => { if (i > 0) ctx.lineTo(xPos(i), yPos(v)); });
@@ -1959,7 +1958,7 @@ function renderTrend(rounds) {
     ctx.fillText(lbl, xPos(i), H - 6);
   });
 
-  // Summary label
+  // Summary
   const change = (curr - values[0]).toFixed(1);
   const dir = change < 0 ? 'improved' : change > 0 ? 'increased' : 'stable';
   trendLabel.textContent = `Last ${n} rounds · Index ${dir} by ${Math.abs(change)} strokes`;
