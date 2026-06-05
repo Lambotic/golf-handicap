@@ -453,7 +453,10 @@
         <div class="handicap-label">Your Handicap Index</div>
         <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
           <div class="handicap-value" id="hcp-value">—</div>
-          <div id="hcp-trend-arrow" style="font-size:36px;line-height:1;margin-top:8px;display:none;"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;margin-top:8px;">
+            <div id="hcp-trend-arrow" style="font-size:36px;line-height:1;display:none;"></div>
+            <div id="hcp-trend-label" style="font-size:10px;opacity:.6;display:none;">last round</div>
+          </div>
         </div>
         <div class="handicap-sub" id="hcp-sub">No rounds recorded yet</div>
         <div class="rounds-used" id="hcp-rounds-used"></div>
@@ -1879,6 +1882,7 @@ function renderTrend(rounds) {
   const curr = indexHistory[indexHistory.length - 1].index;
   const diff = curr - prev;
   arrowEl.style.display = 'block';
+  document.getElementById('hcp-trend-label').style.display = 'block';
   if (diff < -0.4)      { arrowEl.textContent = '↓'; arrowEl.style.color = '#7cfc00'; }
   else if (diff > 0.4)  { arrowEl.textContent = '↑'; arrowEl.style.color = '#ff6b6b'; }
   else                  { arrowEl.textContent = '→'; arrowEl.style.color = '#e8c45a'; }
