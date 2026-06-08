@@ -520,17 +520,52 @@
 
     <!-- LEADERBOARD PAGE -->
     <div class="page" id="page-leaderboard">
-      <p class="section-heading">Friend Handicaps</p>
-      <div class="card" style="padding:0 18px">
-        <div id="leaderboard-list">
-          <div class="empty"><div class="empty-icon">🏆</div><div class="empty-text">Loading leaderboard…</div></div>
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" id="tab-handicaps" onclick="showBoardTab('handicaps')">🏆 Handicaps</button>
+        <button class="tab-btn" id="tab-messages" onclick="showBoardTab('messages')">💬 Messages</button>
+        <button class="tab-btn" id="tab-upcoming" onclick="showBoardTab('upcoming')">📅 Upcoming</button>
+      </div>
+
+      <!-- Friend Handicaps Tab -->
+      <div class="tab-content active" id="board-handicaps">
+        <p class="section-heading">Friend Handicaps</p>
+        <div class="card" style="padding:0 18px">
+          <div id="leaderboard-list">
+            <div class="empty"><div class="empty-icon">🏆</div><div class="empty-text">Loading leaderboard…</div></div>
+          </div>
+        </div>
+        <p class="section-heading">All Recent Rounds</p>
+        <div class="card" style="padding:0 18px">
+          <div id="all-rounds-list">
+            <div class="empty"><div class="empty-text">Loading…</div></div>
+          </div>
         </div>
       </div>
 
-      <p class="section-heading">All Recent Rounds</p>
-      <div class="card" style="padding:0 18px">
-        <div id="all-rounds-list">
-          <div class="empty"><div class="empty-text">Loading…</div></div>
+      <!-- Messages Tab -->
+      <div class="tab-content" id="board-messages">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 0;">
+          <p class="section-heading" style="padding:0">Notice Board</p>
+          <button class="btn btn-sm btn-grass-outline" onclick="showAddMessage()">+ Post</button>
+        </div>
+        <div class="card" style="padding:0 18px">
+          <div id="messages-list">
+            <div class="empty"><div class="empty-text">Loading messages…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upcoming Rounds Tab -->
+      <div class="tab-content" id="board-upcoming">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 0;">
+          <p class="section-heading" style="padding:0">Upcoming Rounds</p>
+          <button class="btn btn-sm btn-grass-outline" onclick="showAddUpcoming()">+ Add</button>
+        </div>
+        <div class="card" style="padding:0 18px">
+          <div id="upcoming-list">
+            <div class="empty"><div class="empty-text">Loading…</div></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1233,7 +1268,7 @@ function showPage(name) {
   document.getElementById('nav-'+name).classList.add('active');
   document.getElementById('scroll-area').scrollTop = 0;
 
-  if (name === 'leaderboard') loadLeaderboard();
+  if (name === 'leaderboard') { showBoardTab('handicaps'); loadLeaderboard(); }
   if (name === 'courses') loadCourses();
   if (name === 'profile') populateProfileForm();
   if (name === 'admin') loadAdminPage();
@@ -1588,7 +1623,193 @@ function renderProfileStats() {
     <div style="font-size:12px;color:var(--text-3);margin-top:4px;">${STATE.handicap && STATE.handicap.isInterim ? `Interim: best ${STATE.handicap.roundsUsed} of ${STATE.handicap.totalRounds} · ${STATE.handicap.roundsNeeded} more round${STATE.handicap.roundsNeeded!==1?'s':''} for full index` : 'Full index: best 4 of last 10'}</div>`;
 }
 
-// ---- ADMIN ----
+// ---- BOARD TABS ----
+
+function showBoardTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('board-' + tab).classList.add('active');
+  if (tab === 'messages') loadMessages();
+  if (tab === 'upcoming') loadUpcoming();
+}
+
+// ---- MESSAGES ----
+
+async function loadMessages() {
+  const list = document.getElementById('messages-list');
+  list.innerHTML = '<div class="empty"><div class="empty-text">Loading…</div></div>';
+  try {
+    const res = await apiGet('getMessages');
+    renderMessages(res.messages || []);
+  } catch(e) { list.innerHTML = '<div class="empty"><div class="empty-text">Could not load messages</div></div>'; }
+}
+
+function renderMessages(messages) {
+  const list = document.getElementById('messages-list');
+  const isAdmin = adminUnlocked;
+  if (!messages.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">💬</div><div class="empty-text">No messages yet. Be the first to post!</div></div>';
+    return;
+  }
+  list.innerHTML = messages.map(m => `
+    <div style="padding:14px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div style="font-weight:600;font-size:14px;">${m.displayName || m.userName}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="font-size:11px;color:var(--text-3);">${formatDate(m.postedAt)}</div>
+          ${isAdmin ? `<button class="round-del" onclick="adminDeleteMessage('${m.messageId}')" title="Delete">✕</button>` : ''}
+        </div>
+      </div>
+      <div style="font-size:14px;color:var(--text-2);margin-top:6px;line-height:1.5;">${m.message}</div>
+    </div>`).join('');
+}
+
+function showAddMessage() {
+  document.getElementById('message-text').value = '';
+  openModal('modal-message');
+}
+
+async function submitMessage() {
+  const text = document.getElementById('message-text').value.trim();
+  if (!text) { toast('Please enter a message', true); return; }
+  showLoader();
+  try {
+    await apiPost('saveMessage', {
+      userName:    STATE.user.userName,
+      displayName: STATE.user.displayName,
+      message:     text,
+    });
+    closeModal('modal-message');
+    toast('Message posted!');
+    loadMessages();
+  } catch(e) { toast('Error: ' + e.message, true); }
+  hideLoader();
+}
+
+async function adminDeleteMessage(messageId) {
+  if (!confirm('Delete this message?')) return;
+  showLoader();
+  try {
+    await apiGet('deleteMessage', { messageId });
+    toast('Message deleted');
+    loadMessages();
+  } catch(e) { toast('Error: ' + e.message, true); }
+  hideLoader();
+}
+
+// ---- UPCOMING ROUNDS ----
+
+async function loadUpcoming() {
+  const list = document.getElementById('upcoming-list');
+  list.innerHTML = '<div class="empty"><div class="empty-text">Loading…</div></div>';
+  try {
+    const res = await apiGet('getUpcoming');
+    renderUpcoming(res.upcoming || []);
+  } catch(e) { list.innerHTML = '<div class="empty"><div class="empty-text">Could not load upcoming rounds</div></div>'; }
+}
+
+function renderUpcoming(upcoming) {
+  const list = document.getElementById('upcoming-list');
+  const isAdmin = adminUnlocked;
+  if (!upcoming.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">📅</div><div class="empty-text">No upcoming rounds posted yet.</div></div>';
+    return;
+  }
+  list.innerHTML = upcoming.map(u => {
+    const players = u.rsvps ? u.rsvps.split(',').filter(Boolean) : [];
+    const hasRsvp = players.includes(STATE.user.displayName || STATE.user.userName);
+    return `<div style="padding:14px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-weight:600;font-size:15px;">${u.courseName}</div>
+          <div style="font-size:13px;color:var(--text-3);margin-top:2px;">
+            📅 ${formatDate(u.date)} &nbsp;⏰ ${u.teeTime || '—'}
+          </div>
+          <div style="font-size:12px;color:var(--text-2);margin-top:4px;">Posted by ${u.displayName || u.userName}</div>
+          ${u.notes ? `<div style="font-size:13px;color:var(--text-2);margin-top:4px;font-style:italic;">${u.notes}</div>` : ''}
+        </div>
+        ${isAdmin ? `<button class="round-del" onclick="adminDeleteUpcoming('${u.upcomingId}')" title="Delete">✕</button>` : ''}
+      </div>
+      <div style="margin-top:10px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px;">
+          Playing (${players.length})
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+          ${players.map(p => `<span style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:500;">${p}</span>`).join('')}
+          ${!hasRsvp
+            ? `<button class="btn btn-sm btn-grass-outline" style="padding:4px 12px;font-size:12px;" onclick="rsvpUpcoming('${u.upcomingId}')">I'm in!</button>`
+            : `<button class="btn btn-sm btn-secondary" style="padding:4px 12px;font-size:12px;" onclick="unrsvpUpcoming('${u.upcomingId}')">Cancel RSVP</button>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showAddUpcoming() {
+  document.getElementById('modal-upcoming-title').textContent = 'Add Upcoming Round';
+  document.getElementById('upcoming-edit-id').value = '';
+  document.getElementById('upcoming-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('upcoming-time').value = '08:00';
+  document.getElementById('upcoming-notes').value = '';
+  const sel = document.getElementById('upcoming-course');
+  sel.innerHTML = '<option value="">— Select course —</option>' +
+    STATE.courses.map(c => `<option value="${c.courseName}">${c.courseName}</option>`).join('');
+  openModal('modal-upcoming');
+}
+
+async function submitUpcoming() {
+  const courseName = document.getElementById('upcoming-course').value;
+  const date       = document.getElementById('upcoming-date').value;
+  const teeTime    = document.getElementById('upcoming-time').value;
+  const notes      = document.getElementById('upcoming-notes').value.trim();
+  const editId     = document.getElementById('upcoming-edit-id').value;
+  if (!courseName || !date) { toast('Please select a course and date', true); return; }
+  showLoader();
+  try {
+    await apiPost('saveUpcoming', {
+      upcomingId:  editId || undefined,
+      userName:    STATE.user.userName,
+      displayName: STATE.user.displayName,
+      courseName, date, teeTime, notes,
+    });
+    closeModal('modal-upcoming');
+    toast('Round posted!');
+    loadUpcoming();
+  } catch(e) { toast('Error: ' + e.message, true); }
+  hideLoader();
+}
+
+async function rsvpUpcoming(upcomingId) {
+  showLoader();
+  try {
+    await apiGet('rsvpUpcoming', { upcomingId, userName: STATE.user.displayName || STATE.user.userName, action: 'add' });
+    loadUpcoming();
+  } catch(e) { toast('Error: ' + e.message, true); }
+  hideLoader();
+}
+
+async function unrsvpUpcoming(upcomingId) {
+  showLoader();
+  try {
+    await apiGet('rsvpUpcoming', { upcomingId, userName: STATE.user.displayName || STATE.user.userName, action: 'remove' });
+    loadUpcoming();
+  } catch(e) { toast('Error: ' + e.message, true); }
+  hideLoader();
+}
+
+async function adminDeleteUpcoming(upcomingId) {
+  if (!confirm('Delete this upcoming round?')) return;
+  showLoader();
+  try {
+    await apiGet('deleteUpcoming', { upcomingId });
+    toast('Deleted');
+    loadUpcoming();
+  } catch(e) { toast('Error: ' + e.message, true); }
+  hideLoader();
+}
+
+// ---- BOARD TAB LOAD on page switch ----
 
 const ADMIN_PIN = '2232110';
 let adminUnlocked = false;
@@ -2151,6 +2372,55 @@ function formatDate(d) {
     <div style="display:flex;gap:10px;">
       <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-edit-tee')">Cancel</button>
       <button class="btn btn-primary" style="flex:2" onclick="submitEditTee()">Save Tee</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== POST MESSAGE MODAL ===== -->
+<div class="modal-overlay" id="modal-message">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Post a Message</div>
+    <div class="form-group">
+      <label class="form-label">Message</label>
+      <textarea class="form-input" id="message-text" rows="4" placeholder="What's on your mind?" style="resize:none;line-height:1.5;"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-message')">Cancel</button>
+      <button class="btn btn-primary" style="flex:2" onclick="submitMessage()">Post</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ADD UPCOMING ROUND MODAL ===== -->
+<div class="modal-overlay" id="modal-upcoming">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-upcoming-title">Add Upcoming Round</div>
+    <input type="hidden" id="upcoming-edit-id">
+    <div class="form-group">
+      <label class="form-label">Course</label>
+      <select class="form-select" id="upcoming-course">
+        <option value="">— Select course —</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input class="form-input" id="upcoming-date" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tee Time</label>
+        <input class="form-input" id="upcoming-time" type="time" value="08:00">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <input class="form-input" id="upcoming-notes" type="text" placeholder="e.g. Anyone in? Meet at the clubhouse.">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-upcoming')">Cancel</button>
+      <button class="btn btn-primary" style="flex:2" onclick="submitUpcoming()">Save</button>
     </div>
   </div>
 </div>
