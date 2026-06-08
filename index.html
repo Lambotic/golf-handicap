@@ -668,7 +668,7 @@
     </button>
     <button class="nav-btn" id="nav-log" onclick="showAddRound()">
       <svg viewBox="0 0 24 24" style="width:28px;height:28px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="7" x2="12" y2="17"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
-      Log
+      Add Round
     </button>
     <button class="nav-btn" id="nav-courses" onclick="showPage('courses')">
       <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
@@ -1242,8 +1242,10 @@ function showPage(name) {
 // ---- ADD ROUND ----
 
 function showAddRound() {
-  document.getElementById('modal-round-title').textContent = 'Log a Round';
-  document.getElementById('round-edit-id').value = '';
+  document.getElementById('modal-round-title').textContent = 'Add Round';
+  const editIdEl = document.getElementById('round-edit-id');
+  editIdEl.value = '';
+  editIdEl.dataset.userName = '';
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('round-date').value = today;
   document.getElementById('round-notes').value = '';
@@ -1272,7 +1274,9 @@ function editRound(roundId) {
   if (!r) { toast('Round not found', true); return; }
 
   document.getElementById('modal-round-title').textContent = 'Edit Round';
-  document.getElementById('round-edit-id').value = roundId;
+  const editIdEl2 = document.getElementById('round-edit-id');
+  editIdEl2.value = roundId;
+  editIdEl2.dataset.userName = '';
 
   // Populate course dropdown
   const sel = document.getElementById('round-course');
@@ -1333,6 +1337,9 @@ async function submitRound() {
   const datePlayed = document.getElementById('round-date').value;
   const gross      = document.getElementById('round-gross').value;
   const editId     = document.getElementById('round-edit-id').value;
+  // Use original userName if editing someone else's round (admin)
+  const editUserName = document.getElementById('round-edit-id').dataset.userName;
+  const userName   = editUserName || STATE.user.userName;
 
   if (!courseId || !teeId || !datePlayed || !gross) {
     toast('Please fill in all required fields', true); return;
@@ -1359,7 +1366,7 @@ async function submitRound() {
   try {
     await apiPost('saveRound', {
       roundId:      editId || undefined,
-      userName:     STATE.user.userName,
+      userName:     userName,
       courseId, teeId,
       courseName:   course.courseName,
       teeName:      tee.teeName,
@@ -1380,7 +1387,7 @@ async function submitRound() {
         try {
           await apiPost('saveRound', {
             roundId: editId || ('round_' + Date.now() + '_override'),
-            userName:     STATE.user.userName,
+            userName:     userName,
             courseId, teeId,
             courseName:   course.courseName,
             teeName:      tee.teeName,
@@ -1731,12 +1738,13 @@ async function adminDeleteRound(roundId, userName) {
 }
 
 function adminEditRound(roundId) {
-  // Find round in allRounds and open the standard edit modal
   const r = STATE.allRounds.find(r => r.roundId === roundId);
   if (!r) { toast('Round not found', true); return; }
 
-  document.getElementById('modal-round-title').textContent = 'Edit Round (Admin)';
+  document.getElementById('modal-round-title').textContent = `Edit Round — ${r.userName}`;
   document.getElementById('round-edit-id').value = roundId;
+  // Store the original userName so submitRound saves under the right user
+  document.getElementById('round-edit-id').dataset.userName = r.userName;
 
   const sel = document.getElementById('round-course');
   sel.innerHTML = '<option value="">— Select course —</option>' +
@@ -1756,7 +1764,70 @@ function adminEditRound(roundId) {
   openModal('modal-round');
 }
 
-function renderAdminUsers() {
+function showEditCourse(courseId) {
+  const c = STATE.courses.find(c => c.courseId === courseId);
+  if (!c) return;
+  document.getElementById('edit-course-id').value    = courseId;
+  document.getElementById('edit-course-name').value  = c.courseName;
+  document.getElementById('edit-course-city').value  = c.city || '';
+  document.getElementById('edit-course-state').value = c.state || '';
+  document.getElementById('edit-course-holes').value = c.holes || '18';
+  openModal('modal-edit-course');
+}
+
+async function submitEditCourse() {
+  const courseId = document.getElementById('edit-course-id').value;
+  const name     = document.getElementById('edit-course-name').value.trim();
+  const city     = document.getElementById('edit-course-city').value.trim();
+  const state    = document.getElementById('edit-course-state').value.trim();
+  const holes    = document.getElementById('edit-course-holes').value;
+  if (!name) { toast('Course name required', true); return; }
+  showLoader();
+  try {
+    await apiPost('saveCourse', { courseId, courseName: name, city, state, holes });
+    toast('Course updated!');
+    closeModal('modal-edit-course');
+    const [cRes, tRes] = await Promise.all([apiGet('getCourses'), apiGet('getTees')]);
+    STATE.courses = cRes.courses || [];
+    STATE.tees    = tRes.tees || [];
+    renderAdminCourses();
+  } catch(e) { toast('Error: ' + e.message, true); }
+  hideLoader();
+}
+
+function showEditTee(teeId) {
+  const t = STATE.tees.find(t => t.teeId === teeId);
+  if (!t) return;
+  document.getElementById('edit-tee-id').value       = teeId;
+  document.getElementById('edit-tee-courseid').value = t.courseId;
+  document.getElementById('edit-tee-name').value     = t.teeName;
+  document.getElementById('edit-tee-gender').value   = t.gender || 'M';
+  document.getElementById('edit-tee-rating').value   = t.courseRating;
+  document.getElementById('edit-tee-slope').value    = t.slopeRating;
+  document.getElementById('edit-tee-par').value      = t.par;
+  openModal('modal-edit-tee');
+}
+
+async function submitEditTee() {
+  const teeId    = document.getElementById('edit-tee-id').value;
+  const courseId = document.getElementById('edit-tee-courseid').value;
+  const teeName  = document.getElementById('edit-tee-name').value.trim();
+  const gender   = document.getElementById('edit-tee-gender').value;
+  const rating   = document.getElementById('edit-tee-rating').value;
+  const slope    = document.getElementById('edit-tee-slope').value;
+  const par      = document.getElementById('edit-tee-par').value;
+  if (!teeName || !rating || !slope || !par) { toast('Please fill in all fields', true); return; }
+  showLoader();
+  try {
+    await apiPost('saveTee', { teeId, courseId, teeName, gender, courseRating: rating, slopeRating: slope, par });
+    toast('Tee updated!');
+    closeModal('modal-edit-tee');
+    const tRes = await apiGet('getTees');
+    STATE.tees = tRes.tees || [];
+    renderAdminCourses();
+  } catch(e) { toast('Error: ' + e.message, true); }
+  hideLoader();
+}
   const list = document.getElementById('admin-users-list');
   const users = STATE.allUsers || [];
   if (!users.length) {
@@ -1799,12 +1870,18 @@ function renderAdminCourses() {
     const teeItems = courseTees.map(t => `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
         <span style="font-size:13px;color:var(--text-2)">${t.teeName} — R:${t.courseRating} S:${t.slopeRating} P:${t.par}</span>
-        <button class="round-del" onclick="adminDeleteTee('${t.teeId}','${c.courseId}')" title="Delete tee">✕</button>
+        <div style="display:flex;gap:4px;">
+          <button class="round-edit" onclick="showEditTee('${t.teeId}')" title="Edit tee">✏️</button>
+          <button class="round-del" onclick="adminDeleteTee('${t.teeId}','${c.courseId}')" title="Delete tee">✕</button>
+        </div>
       </div>`).join('');
     return `<div class="course-item">
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div class="course-name">${c.courseName}</div>
-        <button class="round-del" onclick="adminDeleteCourse('${c.courseId}','${c.courseName}')" title="Delete course">✕</button>
+        <div style="display:flex;gap:4px;">
+          <button class="round-edit" onclick="showEditCourse('${c.courseId}')" title="Edit course">✏️</button>
+          <button class="round-del" onclick="adminDeleteCourse('${c.courseId}','${c.courseName}')" title="Delete course">✕</button>
+        </div>
       </div>
       <div class="course-meta">${[c.city,c.state].filter(Boolean).join(', ')} · ${c.holes} holes</div>
       <div style="margin-top:8px;">${teeItems}</div>
@@ -2000,5 +2077,81 @@ function formatDate(d) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 </script>
+<!-- ===== EDIT COURSE MODAL ===== -->
+<div class="modal-overlay" id="modal-edit-course">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Edit Course</div>
+    <input type="hidden" id="edit-course-id">
+    <div class="form-group">
+      <label class="form-label">Course Name</label>
+      <input class="form-input" id="edit-course-name" type="text">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">City</label>
+        <input class="form-input" id="edit-course-city" type="text">
+      </div>
+      <div class="form-group">
+        <label class="form-label">State</label>
+        <input class="form-input" id="edit-course-state" type="text" maxlength="2">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Holes</label>
+      <select class="form-select" id="edit-course-holes">
+        <option value="18">18 holes</option>
+        <option value="9">9 holes</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-edit-course')">Cancel</button>
+      <button class="btn btn-primary" style="flex:2" onclick="submitEditCourse()">Save Course</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== EDIT TEE MODAL ===== -->
+<div class="modal-overlay" id="modal-edit-tee">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Edit Tee</div>
+    <input type="hidden" id="edit-tee-id">
+    <input type="hidden" id="edit-tee-courseid">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Tee Name</label>
+        <input class="form-input" id="edit-tee-name" type="text">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Gender</label>
+        <select class="form-select" id="edit-tee-gender">
+          <option value="M">Men</option>
+          <option value="F">Ladies</option>
+          <option value="MF">Mixed</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row-3">
+      <div class="form-group">
+        <label class="form-label">Rating</label>
+        <input class="form-input" id="edit-tee-rating" type="number" step="0.1">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Slope</label>
+        <input class="form-input" id="edit-tee-slope" type="number">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Par</label>
+        <input class="form-input" id="edit-tee-par" type="number">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-edit-tee')">Cancel</button>
+      <button class="btn btn-primary" style="flex:2" onclick="submitEditTee()">Save Tee</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
