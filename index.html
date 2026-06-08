@@ -1828,6 +1828,8 @@ async function submitEditTee() {
   } catch(e) { toast('Error: ' + e.message, true); }
   hideLoader();
 }
+
+function renderAdminUsers() {
   const list = document.getElementById('admin-users-list');
   const users = STATE.allUsers || [];
   if (!users.length) {
