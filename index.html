@@ -328,6 +328,32 @@
   }
   .pin-screen-hidden { display: none !important; }
 
+  .pin-dot {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5);
+    background: transparent;
+    transition: background .15s, border-color .15s;
+  }
+  .pin-dot.filled {
+    background: var(--gold-l);
+    border-color: var(--gold-l);
+  }
+  .pin-pad-btn {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 12px;
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 500;
+    padding: 16px;
+    cursor: pointer;
+    transition: background .1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pin-pad-btn:active { background: rgba(255,255,255,0.3); }
+
   /* ===== SETUP SCREEN ===== */
   #setup-screen {
     display: none; position: fixed; inset: 0;
@@ -406,6 +432,10 @@
       <label class="form-label">Confirm PIN</label>
       <input class="form-input" id="setup-pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" style="letter-spacing:8px;font-size:22px;text-align:center;">
     </div>
+    <div class="form-group">
+      <label class="form-label">Mother's maiden name (for PIN recovery)</label>
+      <input class="form-input" id="setup-secret" type="text" placeholder="Enter answer" autocomplete="off">
+    </div>
     <button class="btn btn-gold" onclick="completeSetup()">Create Profile →</button>
     <p style="color:rgba(255,255,255,0.55);font-size:12px;margin-top:12px;text-align:center;">Already registered? <span style="text-decoration:underline;cursor:pointer;" onclick="showPinLogin()">Sign in with PIN</span></p>
   </div>
@@ -420,12 +450,67 @@
   <p id="pin-welcome-name" style="color:rgba(255,255,255,0.7);margin-bottom:32px;font-size:15px;"></p>
   <div class="setup-card">
     <div class="form-group">
-      <label class="form-label">Enter your PIN</label>
-      <input class="form-input" id="login-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" style="letter-spacing:8px;font-size:28px;text-align:center;" onkeydown="if(event.key==='Enter')checkLoginPin()">
+      <label class="form-label">Enter your 4-digit PIN</label>
+      <!-- PIN dot display -->
+      <div id="pin-dots" style="display:flex;justify-content:center;gap:16px;margin:12px 0 16px;">
+        <div class="pin-dot" id="dot-0"></div>
+        <div class="pin-dot" id="dot-1"></div>
+        <div class="pin-dot" id="dot-2"></div>
+        <div class="pin-dot" id="dot-3"></div>
+      </div>
+      <input class="form-input" id="login-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="" style="letter-spacing:8px;font-size:28px;text-align:center;opacity:0;height:1px;padding:0;border:none;" oninput="updatePinDots()" onkeydown="if(event.key==='Enter')checkLoginPin()">
     </div>
-    <button class="btn btn-gold" onclick="checkLoginPin()">Sign In →</button>
-    <p style="color:rgba(255,255,255,0.55);font-size:12px;margin-top:12px;text-align:center;">Not you? <span style="text-decoration:underline;cursor:pointer;" onclick="switchUser()">Switch user</span></p>
-    <p style="color:rgba(255,255,255,0.55);font-size:12px;margin-top:6px;text-align:center;"><span style="text-decoration:underline;cursor:pointer;" onclick="forgotPin()">Forgot PIN?</span></p>
+    <!-- Number pad -->
+    <div id="pin-pad" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+      <button class="pin-pad-btn" onclick="pinPadPress('1')">1</button>
+      <button class="pin-pad-btn" onclick="pinPadPress('2')">2</button>
+      <button class="pin-pad-btn" onclick="pinPadPress('3')">3</button>
+      <button class="pin-pad-btn" onclick="pinPadPress('4')">4</button>
+      <button class="pin-pad-btn" onclick="pinPadPress('5')">5</button>
+      <button class="pin-pad-btn" onclick="pinPadPress('6')">6</button>
+      <button class="pin-pad-btn" onclick="pinPadPress('7')">7</button>
+      <button class="pin-pad-btn" onclick="pinPadPress('8')">8</button>
+      <button class="pin-pad-btn" onclick="pinPadPress('9')">9</button>
+      <button class="pin-pad-btn" onclick="pinPadClear()" style="font-size:13px;color:var(--text-3);">Clear</button>
+      <button class="pin-pad-btn" onclick="pinPadPress('0')">0</button>
+      <button class="pin-pad-btn btn-gold" onclick="checkLoginPin()" style="font-size:18px;">→</button>
+    </div>
+    <p id="pin-error" style="color:#ff6b6b;font-size:13px;text-align:center;min-height:18px;margin-bottom:8px;"></p>
+    <p style="color:rgba(255,255,255,0.55);font-size:12px;text-align:center;">Not you? <span style="text-decoration:underline;cursor:pointer;" onclick="switchUser()">Switch user</span></p>
+    <p style="color:rgba(255,255,255,0.55);font-size:12px;margin-top:6px;text-align:center;"><span style="text-decoration:underline;cursor:pointer;" onclick="showForgotPin()">Forgot PIN?</span></p>
+  </div>
+</div>
+
+<!-- ===== SECRET ANSWER SETUP SCREEN ===== -->
+<div id="secret-screen" class="pin-screen-hidden" style="position:fixed;inset:0;background:var(--grass);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;">
+  <div class="setup-logo">🔐</div>
+  <h1 style="font-family:'DM Serif Display',serif;color:#fff;font-size:24px;margin-bottom:8px;">One-time security setup</h1>
+  <p style="color:rgba(255,255,255,0.7);margin-bottom:32px;font-size:14px;line-height:1.6;">Set a secret answer to recover your account<br>if you forget your PIN.</p>
+  <div class="setup-card">
+    <div class="form-group">
+      <label class="form-label">What is your mother's maiden name?</label>
+      <input class="form-input" id="secret-answer" type="text" placeholder="Enter answer" autocomplete="off">
+    </div>
+    <button class="btn btn-gold" onclick="saveSecretAnswer()">Save & Continue →</button>
+  </div>
+</div>
+
+<!-- ===== FORGOT PIN SCREEN ===== -->
+<div id="forgot-screen" class="pin-screen-hidden" style="position:fixed;inset:0;background:var(--grass);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;">
+  <div class="setup-logo">🔑</div>
+  <h1 style="font-family:'DM Serif Display',serif;color:#fff;font-size:24px;margin-bottom:8px;">Reset your PIN</h1>
+  <p style="color:rgba(255,255,255,0.7);margin-bottom:32px;font-size:14px;">Answer your security question to continue.</p>
+  <div class="setup-card">
+    <div class="form-group">
+      <label class="form-label">Your Name</label>
+      <input class="form-input" id="forgot-name" type="text" placeholder="e.g. Pete Lambert">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mother's maiden name</label>
+      <input class="form-input" id="forgot-answer" type="text" placeholder="Your answer" autocomplete="off">
+    </div>
+    <button class="btn btn-gold" onclick="verifySecretAnswer()">Verify →</button>
+    <p style="color:rgba(255,255,255,0.55);font-size:12px;margin-top:12px;text-align:center;"><span style="text-decoration:underline;cursor:pointer;" onclick="cancelForgotPin()">Back to login</span></p>
   </div>
 </div>
 
@@ -897,18 +982,50 @@ let STATE = {
   handicap: null,
 };
 
-// ---- INIT ----
+// ---- PIN PAD ----
+
+function pinPadPress(digit) {
+  const input = document.getElementById('login-pin');
+  if (input.value.length < 4) {
+    input.value += digit;
+    updatePinDots();
+    if (input.value.length === 4) {
+      setTimeout(checkLoginPin, 150);
+    }
+  }
+}
+
+function pinPadClear() {
+  document.getElementById('login-pin').value = '';
+  updatePinDots();
+  document.getElementById('pin-error').textContent = '';
+}
+
+function updatePinDots() {
+  const val = document.getElementById('login-pin').value;
+  for (let i = 0; i < 4; i++) {
+    const dot = document.getElementById('dot-' + i);
+    if (i < val.length) dot.classList.add('filled');
+    else dot.classList.remove('filled');
+  }
+}
+
+// ---- AUTH ----
 
 window.addEventListener('DOMContentLoaded', async () => {
-  const saved = localStorage.getItem('golf_user');
+  const saved    = localStorage.getItem('golf_user');
   const savedPin = localStorage.getItem('golf_pin');
   if (!saved || !savedPin) {
-    // No profile saved — show first launch screen
     document.getElementById('setup-screen').classList.add('show');
   } else {
-    // Profile exists — show PIN login
     const user = JSON.parse(saved);
-    showPinLogin(user.displayName || user.userName);
+    // Check if secret answer is set — if not, prompt for it
+    const savedSecret = localStorage.getItem('golf_secret');
+    if (!savedSecret) {
+      showSecretSetup(user);
+    } else {
+      showPinLogin(user.displayName || user.userName);
+    }
   }
 });
 
@@ -919,59 +1036,114 @@ function showPinLogin(name) {
     name = user.displayName || user.userName;
   }
   document.getElementById('setup-screen').classList.remove('show');
+  document.getElementById('secret-screen').classList.add('pin-screen-hidden');
+  document.getElementById('forgot-screen').classList.add('pin-screen-hidden');
   document.getElementById('pin-welcome-name').textContent = name || '';
   document.getElementById('login-pin').value = '';
-  const pinScreen = document.getElementById('pin-screen');
-  pinScreen.classList.remove('pin-screen-hidden');
-  setTimeout(() => document.getElementById('login-pin').focus(), 300);
+  document.getElementById('pin-error').textContent = '';
+  updatePinDots();
+  document.getElementById('pin-screen').classList.remove('pin-screen-hidden');
 }
 
 function checkLoginPin() {
   const pinInput = document.getElementById('login-pin');
-  const entered = pinInput.value.trim();
+  const entered  = pinInput.value.trim();
   const savedPin = localStorage.getItem('golf_pin');
+  const errorEl  = document.getElementById('pin-error');
 
-  if (!entered) return;
+  if (!entered || entered.length < 4) {
+    errorEl.textContent = 'Please enter your 4-digit PIN';
+    return;
+  }
 
   if (entered === savedPin) {
+    errorEl.textContent = '';
     pinInput.value = '';
+    updatePinDots();
     document.getElementById('pin-screen').classList.add('pin-screen-hidden');
     const user = JSON.parse(localStorage.getItem('golf_user'));
     STATE.user = user;
     document.getElementById('header-username').textContent = user.displayName || user.userName;
     loadAll().then(() => populateProfileForm());
   } else {
-    toast('Incorrect PIN', true);
+    errorEl.textContent = 'Incorrect PIN — please try again';
     pinInput.value = '';
-    pinInput.focus();
+    updatePinDots();
   }
 }
 
 function switchUser() {
   localStorage.removeItem('golf_user');
   localStorage.removeItem('golf_pin');
+  localStorage.removeItem('golf_secret');
   document.getElementById('pin-screen').classList.add('pin-screen-hidden');
   document.getElementById('setup-screen').classList.add('show');
 }
 
-async function forgotPin() {
-  const name = prompt('Enter your full name as registered:');
-  if (!name) return;
+// ---- SECRET ANSWER SETUP ----
+
+function showSecretSetup(user) {
+  document.getElementById('pin-screen').classList.add('pin-screen-hidden');
+  document.getElementById('secret-screen').classList.remove('pin-screen-hidden');
+  document.getElementById('secret-answer').value = '';
+}
+
+function saveSecretAnswer() {
+  const answer = document.getElementById('secret-answer').value.trim().toLowerCase();
+  if (!answer) { toast('Please enter your mother\'s maiden name', true); return; }
+  localStorage.setItem('golf_secret', answer);
+  document.getElementById('secret-screen').classList.add('pin-screen-hidden');
+  // Now sign in
+  const user = JSON.parse(localStorage.getItem('golf_user'));
+  STATE.user = user;
+  document.getElementById('header-username').textContent = user.displayName || user.userName;
+  loadAll().then(() => populateProfileForm());
+}
+
+// ---- FORGOT PIN ----
+
+function showForgotPin() {
+  document.getElementById('pin-screen').classList.add('pin-screen-hidden');
+  document.getElementById('forgot-name').value = '';
+  document.getElementById('forgot-answer').value = '';
+  document.getElementById('forgot-screen').classList.remove('pin-screen-hidden');
+}
+
+function cancelForgotPin() {
+  document.getElementById('forgot-screen').classList.add('pin-screen-hidden');
+  showPinLogin();
+}
+
+async function verifySecretAnswer() {
+  const name   = document.getElementById('forgot-name').value.trim();
+  const answer = document.getElementById('forgot-answer').value.trim().toLowerCase();
+  if (!name || !answer) { toast('Please fill in all fields', true); return; }
 
   showLoader();
   try {
     const usersRes = await apiGet('getUsers');
     const existing = (usersRes.users || []).find(u =>
-      (u.displayName || '').toLowerCase() === name.trim().toLowerCase()
+      (u.displayName || '').toLowerCase() === name.toLowerCase()
     );
     hideLoader();
 
     if (!existing) {
-      toast('Name not found. Check spelling or use Switch User.', true);
-      return;
+      toast('Name not found. Check your spelling.', true); return;
     }
 
-    const newPin = prompt('Name verified! Enter a new 4-digit PIN:');
+    // Check secret answer against stored value
+    const savedSecret = localStorage.getItem('golf_secret');
+    if (savedSecret && answer !== savedSecret) {
+      toast('Incorrect answer. Please try again.', true); return;
+    }
+
+    // If no secret stored on this device, accept the answer and store it
+    if (!savedSecret) {
+      localStorage.setItem('golf_secret', answer);
+    }
+
+    // Verified — set new PIN
+    const newPin = prompt('Verified! Enter your new 4-digit PIN:');
     if (!newPin) return;
     if (!/^\d{4}$/.test(newPin)) { toast('PIN must be exactly 4 digits', true); return; }
     const confirm2 = prompt('Confirm your new PIN:');
@@ -980,10 +1152,10 @@ async function forgotPin() {
     const user = { userName: existing.userName, displayName: existing.displayName || name };
     localStorage.setItem('golf_user', JSON.stringify(user));
     localStorage.setItem('golf_pin', newPin);
-    toast('PIN reset! Signing you in…');
 
+    document.getElementById('forgot-screen').classList.add('pin-screen-hidden');
+    toast('PIN reset! Signing you in…');
     setTimeout(() => {
-      document.getElementById('pin-screen').classList.add('pin-screen-hidden');
       STATE.user = user;
       document.getElementById('header-username').textContent = user.displayName;
       loadAll().then(() => populateProfileForm());
@@ -999,10 +1171,12 @@ async function completeSetup() {
   const name     = document.getElementById('setup-name').value.trim();
   const pin      = document.getElementById('setup-pin').value.trim();
   const pin2     = document.getElementById('setup-pin2').value.trim();
+  const secret   = document.getElementById('setup-secret').value.trim().toLowerCase();
 
   if (!name) { toast('Please enter your name', true); return; }
   if (pin.length !== 4 || !/^\d{4}$/.test(pin)) { toast('PIN must be exactly 4 digits', true); return; }
   if (pin !== pin2) { toast('PINs do not match', true); return; }
+  if (!secret) { toast('Please enter your mother\'s maiden name', true); return; }
 
   showLoader();
   try {
@@ -1025,6 +1199,7 @@ async function completeSetup() {
 
     localStorage.setItem('golf_user', JSON.stringify(user));
     localStorage.setItem('golf_pin', pin);
+    localStorage.setItem('golf_secret', secret);
     STATE.user = user;
     document.getElementById('setup-screen').classList.remove('show');
     document.getElementById('header-username').textContent = user.displayName;
