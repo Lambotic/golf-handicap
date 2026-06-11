@@ -2011,6 +2011,22 @@ function checkAdminPin() {
 }
 
 async function loadAdminPage() {
+  showLoader();
+  try {
+    // Always fetch fresh data for admin
+    const [cRes, tRes, uRes, rRes] = await Promise.all([
+      apiGet('getCourses'),
+      apiGet('getTees'),
+      apiGet('getUsers'),
+      apiGet('getAllRounds'),
+    ]);
+    STATE.courses   = cRes.courses || [];
+    STATE.tees      = tRes.tees || [];
+    STATE.allUsers  = uRes.users || [];
+    STATE.allRounds = rRes.rounds || [];
+  } catch(e) { toast('Error loading admin data', true); }
+  hideLoader();
+
   // Populate all user dropdowns
   const users = STATE.allUsers || [];
   const userOpts = users.map(u => `<option value="${u.userName}">${u.displayName || u.userName}</option>`).join('');
@@ -2024,12 +2040,6 @@ async function loadAdminPage() {
 
   // Default date to today
   document.getElementById('admin-round-date').value = new Date().toISOString().split('T')[0];
-
-  // Load all rounds
-  try {
-    const res = await apiGet('getAllRounds');
-    STATE.allRounds = res.rounds || [];
-  } catch(e) {}
 
   renderAdminRounds();
   renderAdminUsers();
@@ -2070,6 +2080,10 @@ async function adminSaveRound() {
 
   const course = STATE.courses.find(c => c.courseId === courseId);
   const tee    = STATE.tees.find(t => t.teeId === teeId);
+
+  if (!course) { toast('Course not found — please refresh and try again', true); return; }
+  if (!tee)    { toast('Tee not found — please refresh and try again', true); return; }
+  if (!tee.courseRating || !tee.slopeRating) { toast('Tee is missing rating or slope data', true); return; }
 
   showLoader();
   try {
