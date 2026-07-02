@@ -1488,7 +1488,8 @@ function showAddRound() {
   const editIdEl = document.getElementById('round-edit-id');
   editIdEl.value = '';
   editIdEl.dataset.userName = '';
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   document.getElementById('round-date').value = today;
   document.getElementById('round-notes').value = '';
   document.getElementById('round-gross').value = '';
@@ -1958,7 +1959,8 @@ function renderUpcoming(upcoming) {
 function showAddUpcoming() {
   document.getElementById('modal-upcoming-title').textContent = 'Add Upcoming Round';
   document.getElementById('upcoming-edit-id').value = '';
-  document.getElementById('upcoming-date').value = new Date().toISOString().split('T')[0];
+  const _n = new Date();
+  document.getElementById('upcoming-date').value = `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
   document.getElementById('upcoming-time').value = '08:00';
   document.getElementById('upcoming-notes').value = '';
   const sel = document.getElementById('upcoming-course');
@@ -2172,7 +2174,9 @@ async function loadAdminPage() {
   document.getElementById('admin-round-course').innerHTML = courseOpts;
 
   // Default date to today
-  document.getElementById('admin-round-date').value = new Date().toISOString().split('T')[0];
+  const _now = new Date();
+  const _today = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
+  document.getElementById('admin-round-date').value = _today;
 
   renderAdminRounds();
   renderAdminUsers();
@@ -2617,6 +2621,11 @@ function toast(msg, isError = false) {
 
 function formatDate(d) {
   if (!d) return '';
+  // If already YYYY-MM-DD format, parse as local date to avoid timezone shift
+  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    const [year, month, day] = d.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
   const date = new Date(d);
   if (isNaN(date)) return d;
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
