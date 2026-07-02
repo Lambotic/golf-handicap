@@ -1271,6 +1271,9 @@ async function loadAll() {
 }
 
 async function loadLeaderboard() {
+  // Show loading state immediately
+  document.getElementById('all-rounds-list').innerHTML = '<div class="empty"><div class="empty-text">Loading…</div></div>';
+  document.getElementById('leaderboard-list').innerHTML = '<div class="empty"><div class="empty-text">Loading…</div></div>';
   try {
     const [hcpRes, allRes] = await Promise.all([
       apiGet('getAllHandicaps'),
@@ -1822,6 +1825,7 @@ function showBoardTab(tab) {
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   document.getElementById('board-' + tab).classList.add('active');
+  if (tab === 'handicaps') loadLeaderboard();
   if (tab === 'messages') loadMessages();
   if (tab === 'upcoming') loadUpcoming();
 }
