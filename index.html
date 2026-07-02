@@ -1426,7 +1426,9 @@ function renderLeaderboard(handicaps) {
 
 function renderAllRounds() {
   const list = document.getElementById('all-rounds-list');
-  const rounds = STATE.allRounds.slice(0,20);
+  const rounds = [...STATE.allRounds]
+    .sort((a,b) => new Date(b.datePlayed) - new Date(a.datePlayed))
+    .slice(0,20);
   if (!rounds.length) {
     list.innerHTML = `<div class="empty"><div class="empty-text">No rounds recorded yet</div></div>`;
     return;
@@ -1435,7 +1437,7 @@ function renderAllRounds() {
     <div class="round-item">
       <div class="round-left">
         <div class="round-course">${r.courseName}</div>
-        <div class="round-meta">${r.userName} · ${r.teeName} · ${formatDate(r.datePlayed)}</div>
+        <div class="round-meta">${r.displayName || r.userName} · ${r.teeName} · ${formatDate(r.datePlayed)}</div>
       </div>
       <div class="round-right">
         <div class="round-score">${r.grossScore}</div>
