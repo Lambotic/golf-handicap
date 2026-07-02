@@ -1258,11 +1258,22 @@ async function loadAll() {
       apiGet('getHandicap', { userName: STATE.user.userName }),
       apiGet('getUsers'),
     ]);
-    STATE.courses = coursesRes.courses || [];
-    STATE.tees = teesRes.tees || [];
+    STATE.courses  = coursesRes.courses || [];
+    STATE.tees     = teesRes.tees || [];
     STATE.myRounds = roundsRes.rounds || [];
     STATE.handicap = hcpRes;
     STATE.allUsers = usersRes.users || [];
+
+    // Merge full user record from Sheet so homeCourse/homeTeeId are always current
+    const fullUser = STATE.allUsers.find(u => u.userName === STATE.user.userName);
+    if (fullUser) {
+      STATE.user = { ...STATE.user, ...fullUser };
+      // Only update localStorage if not impersonating
+      if (!STATE.isImpersonating) {
+        localStorage.setItem('golf_user', JSON.stringify(STATE.user));
+      }
+    }
+
     renderHome();
   } catch(e) {
     toast('Failed to load data: ' + e.message, true);
