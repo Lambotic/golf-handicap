@@ -2055,6 +2055,7 @@ async function startImpersonation() {
 
   // Save real user
   realUser = STATE.user;
+  STATE.isImpersonating = true;
 
   // Switch to impersonated user
   STATE.user = { userName: user.userName, displayName: user.displayName || user.userName };
@@ -2080,16 +2081,17 @@ async function exitImpersonation() {
   if (!realUser) return;
 
   // Restore Pete's session
-  STATE.user = realUser;
+  const pete = realUser;
   realUser = null;
+  STATE.isImpersonating = false;
 
   // Hide banner
   document.getElementById('impersonate-banner').style.display = 'none';
 
-  // Restore admin nav
-  document.getElementById('nav-admin').style.display = 'flex';
+  // Restore Pete as active user (restores header name and admin nav)
+  setActiveUser(pete);
 
-  // Reload Pete's data
+  // Reload Pete's own data
   showLoader();
   await loadAll();
   populateProfileForm();
