@@ -606,6 +606,9 @@
           <div class="empty"><div class="empty-icon">🏌️</div><div class="empty-text">No rounds yet. Log your first round!</div></div>
         </div>
       </div>
+      <div id="my-rounds-more" style="display:none;padding:0 16px 8px;">
+        <button class="btn btn-secondary" onclick="loadMoreMyRounds()">Load Next 10 Rounds</button>
+      </div>
 
       <div style="padding: 0 16px 8px;">
         <button class="btn btn-primary" onclick="showAddRound()">
@@ -637,6 +640,9 @@
           <div id="all-rounds-list">
             <div class="empty"><div class="empty-text">Loading…</div></div>
           </div>
+        </div>
+        <div id="all-rounds-more" style="display:none;padding:0 16px 8px;">
+          <button class="btn btn-secondary" onclick="loadMoreAllRounds()">Load Next 10 Rounds</button>
         </div>
       </div>
 
@@ -999,7 +1005,11 @@ let STATE = {
   tees: [],
   myRounds: [],
   allRounds: [],
+  allUsers: [],
   handicap: null,
+  isImpersonating: false,
+  myRoundsPage: 10,
+  allRoundsPage: 10,
 };
 
 // ---- PIN PAD ----
@@ -1263,6 +1273,7 @@ async function loadAll() {
     STATE.myRounds = roundsRes.rounds || [];
     STATE.handicap = hcpRes;
     STATE.allUsers = usersRes.users || [];
+    STATE.myRoundsPage = 10; // reset pagination on fresh load
 
     // Merge full user record from Sheet so homeCourse/homeTeeId are always current
     const fullUser = STATE.allUsers.find(u => u.userName === STATE.user.userName);
@@ -1291,6 +1302,7 @@ async function loadLeaderboard() {
       apiGet('getAllRounds'),
     ]);
     STATE.allRounds = allRes.rounds || [];
+    STATE.allRoundsPage = 10; // reset pagination on fresh load
     renderLeaderboard(hcpRes.handicaps || []);
     renderAllRounds();
   } catch(e) {
@@ -1360,9 +1372,11 @@ function renderHome() {
   const list = document.getElementById('recent-rounds-list');
   if (!STATE.myRounds.length) {
     list.innerHTML = `<div class="empty"><div class="empty-icon">🏌️</div><div class="empty-text">No rounds yet. Log your first round!</div></div>`;
+    document.getElementById('my-rounds-more').style.display = 'none';
     return;
   }
-  list.innerHTML = STATE.myRounds.slice(0,10).map(r => {
+  const visible = STATE.myRounds.slice(0, STATE.myRoundsPage);
+  list.innerHTML = visible.map(r => {
     const diff = parseFloat(r.scoreDifferential);
     const cls = diff < 0 ? 'diff-good' : diff < 15 ? 'diff-ok' : 'diff-bad';
     return `<div class="round-item">
@@ -1378,6 +1392,18 @@ function renderHome() {
       <button class="round-del" onclick="deleteRound('${r.roundId}')" title="Delete round">✕</button>
     </div>`;
   }).join('');
+  document.getElementById('my-rounds-more').style.display =
+    STATE.myRounds.length > STATE.myRoundsPage ? 'block' : 'none';
+}
+
+function loadMoreMyRounds() {
+  STATE.myRoundsPage += 10;
+  renderHome();
+}
+
+function loadMoreAllRounds() {
+  STATE.allRoundsPage += 10;
+  renderAllRounds();
 }
 
 function loadLookupTees() {
@@ -1426,14 +1452,15 @@ function renderLeaderboard(handicaps) {
 
 function renderAllRounds() {
   const list = document.getElementById('all-rounds-list');
-  const rounds = [...STATE.allRounds]
-    .sort((a,b) => new Date(b.datePlayed) - new Date(a.datePlayed))
-    .slice(0,20);
-  if (!rounds.length) {
+  const sorted = [...STATE.allRounds]
+    .sort((a,b) => new Date(b.datePlayed) - new Date(a.datePlayed));
+  if (!sorted.length) {
     list.innerHTML = `<div class="empty"><div class="empty-text">No rounds recorded yet</div></div>`;
+    document.getElementById('all-rounds-more').style.display = 'none';
     return;
   }
-  list.innerHTML = rounds.map(r => `
+  const visible = sorted.slice(0, STATE.allRoundsPage);
+  list.innerHTML = visible.map(r => `
     <div class="round-item">
       <div class="round-left">
         <div class="round-course">${r.courseName}</div>
@@ -1444,6 +1471,8 @@ function renderAllRounds() {
         <div class="round-diff">Diff: ${r.scoreDifferential}</div>
       </div>
     </div>`).join('');
+  document.getElementById('all-rounds-more').style.display =
+    sorted.length > STATE.allRoundsPage ? 'block' : 'none';
 }
 
 function renderCourses() {
