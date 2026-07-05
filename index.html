@@ -216,6 +216,9 @@
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 0;
     border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    touch-action: pan-y;
   }
   .round-item:last-child { border-bottom: none; }
   .round-left { flex: 1; }
@@ -224,10 +227,31 @@
   .round-right { text-align: right; flex-shrink: 0; }
   .round-score { font-family: 'DM Serif Display', serif; font-size: 22px; color: var(--grass); }
   .round-diff { font-size: 12px; color: var(--text-3); }
-  .round-del { background: none; border: none; cursor: pointer; color: var(--text-3); padding: 4px 8px; font-size: 16px; margin-left: 4px; }
-  .round-del:hover { color: var(--danger); }
-  .round-edit { background: none; border: none; cursor: pointer; color: var(--text-3); padding: 4px 8px; font-size: 16px; margin-left: 4px; }
-  .round-edit:hover { color: var(--grass); }
+
+  /* Swipe actions revealed behind the row */
+  .round-actions {
+    position: absolute; right: 0; top: 0; bottom: 0;
+    display: flex; align-items: stretch;
+    transform: translateX(100%);
+    transition: transform .2s ease;
+  }
+  .round-actions.visible { transform: translateX(0); }
+  .round-action-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 64px; border: none; cursor: pointer;
+    font-size: 20px; font-family: 'DM Sans', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .round-action-edit { background: var(--grass); color: #fff; }
+  .round-action-del  { background: var(--danger); color: #fff; }
+
+  /* Content slides left on swipe */
+  .round-content {
+    display: flex; align-items: center; width: 100%;
+    transition: transform .2s ease;
+    background: var(--surface);
+  }
+  .round-content.swiped { transform: translateX(-128px); }
 
   /* ===== LEADERBOARD ===== */
   .leaderboard-item {
@@ -852,6 +876,14 @@
     <div class="modal-title" id="modal-round-title">Log a Round</div>
     <input type="hidden" id="round-edit-id" value="">
     <div class="form-group">
+      <label class="form-label">Holes Played</label>
+      <div style="display:flex;gap:8px;">
+        <button id="holes-18-btn" class="btn btn-sm btn-primary" style="flex:1" onclick="setHoles(18)">18 Holes</button>
+        <button id="holes-9-btn" class="btn btn-sm btn-secondary" style="flex:1" onclick="setHoles(9)">9 Holes</button>
+      </div>
+      <input type="hidden" id="round-holes" value="18">
+    </div>
+    <div class="form-group">
       <label class="form-label">Date Played</label>
       <input class="form-input" id="round-date" type="date">
     </div>
@@ -877,7 +909,7 @@
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Gross Score <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-3)">(Double bogey max)</span></label>
+      <label class="form-label" id="gross-score-label">Gross Score (Double bogey max)</label>
       <input class="form-input" id="round-gross" type="number" min="60" max="110" placeholder="e.g. 88" oninput="calcDiff()">
     </div>
     <div id="diff-preview" style="display:none;text-align:center;padding:8px;margin-bottom:10px;background:var(--surface2);border-radius:8px;font-size:13px;"></div>
@@ -1011,6 +1043,16 @@ let STATE = {
   myRoundsPage: 10,
   allRoundsPage: 10,
 };
+
+// ---- 9-HOLE SUPPORT ----
+function setHoles(n) {
+  document.getElementById('round-holes').value = n;
+  document.getElementById('holes-18-btn').className = `btn btn-sm ${n===18?'btn-primary':'btn-secondary'}`;
+  document.getElementById('holes-9-btn').className  = `btn btn-sm ${n===9 ?'btn-primary':'btn-secondary'}`;
+  document.getElementById('gross-score-label').textContent =
+    n === 9 ? 'Gross Score (9 holes, Double bogey max)' : 'Gross Score (Double bogey max)';
+  calcDiff();
+}
 
 // ---- PIN PAD ----
 
@@ -1379,21 +1421,27 @@ function renderHome() {
   list.innerHTML = visible.map(r => {
     const diff = parseFloat(r.scoreDifferential);
     const cls = diff < 0 ? 'diff-good' : diff < 15 ? 'diff-ok' : 'diff-bad';
-    return `<div class="round-item">
-      <div class="round-left">
-        <div class="round-course">${r.courseName}</div>
-        <div class="round-meta">${r.teeName} · ${formatDate(r.datePlayed)}</div>
+    const nineHole = r.holes === '9' || r.holes === 9;
+    return `<div class="round-item" id="ri-${r.roundId}">
+      <div class="round-content">
+        <div class="round-left">
+          <div class="round-course">${r.courseName}${nineHole ? ' <span style="font-size:11px;background:var(--surface2);border-radius:10px;padding:1px 6px;color:var(--text-3);">9 holes</span>' : ''}</div>
+          <div class="round-meta">${r.teeName} · ${formatDate(r.datePlayed)}</div>
+        </div>
+        <div class="round-right">
+          <div class="round-score">${r.grossScore}</div>
+          <div class="round-diff ${cls}">Diff: ${r.scoreDifferential}</div>
+        </div>
       </div>
-      <div class="round-right">
-        <div class="round-score">${r.grossScore}</div>
-        <div class="round-diff ${cls}">Diff: ${r.scoreDifferential}</div>
+      <div class="round-actions">
+        <button class="round-action-btn round-action-edit" onclick="editRound('${r.roundId}')">✏️</button>
+        <button class="round-action-btn round-action-del" onclick="deleteRound('${r.roundId}')">🗑️</button>
       </div>
-      <button class="round-edit" onclick="editRound('${r.roundId}')" title="Edit round">✏️</button>
-      <button class="round-del" onclick="deleteRound('${r.roundId}')" title="Delete round">✕</button>
     </div>`;
   }).join('');
   document.getElementById('my-rounds-more').style.display =
     STATE.myRounds.length > STATE.myRoundsPage ? 'block' : 'none';
+  initSwipe('recent-rounds-list');
 }
 
 function loadMoreMyRounds() {
@@ -1517,6 +1565,7 @@ function showAddRound() {
   const editIdEl = document.getElementById('round-edit-id');
   editIdEl.value = '';
   editIdEl.dataset.userName = '';
+  setHoles(18);
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   document.getElementById('round-date').value = today;
@@ -1594,13 +1643,27 @@ function updateRoundInfo() {
 
 function calcDiff() {
   const gross = parseInt(document.getElementById('round-gross').value);
+  const holes = parseInt(document.getElementById('round-holes').value);
   const sel = document.getElementById('round-tee');
   const opt = sel.options[sel.selectedIndex];
   if (!gross || !opt || !opt.dataset.rating) { document.getElementById('diff-preview').style.display = 'none'; return; }
-  const diff = ((113 / parseFloat(opt.dataset.slope)) * (gross - parseFloat(opt.dataset.rating))).toFixed(1);
+
+  const slope  = parseFloat(opt.dataset.slope);
+  const rating = parseFloat(opt.dataset.rating);
+  let diff;
+  if (holes === 9) {
+    // 9-hole: use half the course rating, then double the differential
+    diff = ((113 / slope) * (gross - (rating / 2))) * 2;
+  } else {
+    diff = (113 / slope) * (gross - rating);
+  }
+  diff = parseFloat(diff.toFixed(1));
+
   const el = document.getElementById('diff-preview');
   el.style.display = 'block';
-  el.innerHTML = `Score differential: <strong>${diff}</strong>`;
+  el.innerHTML = holes === 9
+    ? `9-hole differential: <strong>${diff}</strong> <span style="font-size:11px;color:var(--text-3)">(doubled for index)</span>`
+    : `Score differential: <strong>${diff}</strong>`;
 }
 
 async function submitRound() {
@@ -1608,8 +1671,8 @@ async function submitRound() {
   const teeId      = document.getElementById('round-tee').value;
   const datePlayed = document.getElementById('round-date').value;
   const gross      = document.getElementById('round-gross').value;
+  const holes      = document.getElementById('round-holes').value;
   const editId     = document.getElementById('round-edit-id').value;
-  // Use original userName if editing someone else's round (admin)
   const editUserName = document.getElementById('round-edit-id').dataset.userName;
   const userName   = editUserName || STATE.user.userName;
 
@@ -1617,10 +1680,11 @@ async function submitRound() {
     toast('Please fill in all required fields', true); return;
   }
 
-  // Score range check
   const score = parseInt(gross);
-  if (score < 60 || score > 110) {
-    toast('Score must be between 60 and 110', true); return;
+  const maxScore = holes === '9' ? 55 : 110;
+  const minScore = holes === '9' ? 30 : 60;
+  if (score < minScore || score > maxScore) {
+    toast(`Score must be between ${minScore} and ${maxScore} for ${holes} holes`, true); return;
   }
 
   // Duplicate check — skip if editing the same round
@@ -1644,6 +1708,7 @@ async function submitRound() {
       teeName:      tee.teeName,
       datePlayed,
       grossScore:   gross,
+      holes:        holes,
       courseRating: tee.courseRating,
       slopeRating:  tee.slopeRating,
       notes: document.getElementById('round-notes').value,
@@ -1665,6 +1730,7 @@ async function submitRound() {
             teeName:      tee.teeName,
             datePlayed,
             grossScore:   gross,
+            holes:        holes,
             courseRating: tee.courseRating,
             slopeRating:  tee.slopeRating,
             notes: document.getElementById('round-notes').value,
@@ -2146,6 +2212,57 @@ async function exitImpersonation() {
   hideLoader();
   showPage('home');
   toast('Back to your own view');
+}
+
+// ---- SWIPE TO REVEAL EDIT/DELETE ----
+function initSwipe(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  let startX, startY, currentItem = null;
+
+  container.querySelectorAll('.round-item').forEach(item => {
+    const content = item.querySelector('.round-content');
+    const actions = item.querySelector('.round-actions');
+    if (!content || !actions) return;
+
+    item.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      currentItem = item;
+    }, { passive: true });
+
+    item.addEventListener('touchend', e => {
+      if (!startX) return;
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = Math.abs(e.changedTouches[0].clientY - startY);
+      if (dy > 30) return; // vertical scroll, ignore
+      if (dx < -40) {
+        // Swipe left — close any others first
+        container.querySelectorAll('.round-content.swiped').forEach(c => {
+          if (c !== content) {
+            c.classList.remove('swiped');
+            c.closest('.round-item').querySelector('.round-actions').classList.remove('visible');
+          }
+        });
+        content.classList.add('swiped');
+        actions.classList.add('visible');
+      } else if (dx > 20) {
+        content.classList.remove('swiped');
+        actions.classList.remove('visible');
+      }
+      startX = null;
+    }, { passive: true });
+  });
+
+  // Tap anywhere else to close
+  document.addEventListener('touchstart', e => {
+    if (!e.target.closest('.round-item')) {
+      container.querySelectorAll('.round-content.swiped').forEach(c => {
+        c.classList.remove('swiped');
+        c.closest('.round-item').querySelector('.round-actions').classList.remove('visible');
+      });
+    }
+  }, { passive: true });
 }
 
 // ---- BOARD TAB LOAD on page switch ----
