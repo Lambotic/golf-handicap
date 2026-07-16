@@ -866,9 +866,10 @@
         <div class="card-title"><span class="dot"></span> Grand Reserve Scorecard</div>
         <div class="form-group">
           <label class="form-label">Select Tee</label>
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button id="sc-white-btn" class="btn btn-sm btn-secondary" style="flex:1" onclick="selectSCTee('white')">White (66.2/105)</button>
             <button id="sc-green-btn" class="btn btn-sm btn-secondary" style="flex:1" onclick="selectSCTee('green')">Green (64.2/102)</button>
+            <button id="sc-blue-btn" class="btn btn-sm btn-secondary" style="flex:1" onclick="selectSCTee('blue')">Blue (68.6/112)</button>
           </div>
         </div>
         <div class="form-group">
@@ -2363,6 +2364,12 @@ const GR_COURSES = {
     yards: [304,213,263,105,417,159,410,278,288, 86,350,263,111,346,312,114,382,303],
     par18: [4,4,4,3,5,3,5,4,4, 3,4,4,3,5,4,3,5,4],
     si:    [16,18,10,12,8,4,2,14,6, 13,1,15,11,17,9,3,5,7],
+  },
+  blue: {
+    name: 'Grand Reserve GC', tee: 'Blue', rating: 68.6, slope: 112, par: 71,
+    yards: [393,338,347,174,518,208,525,370,405, 157,411,358,174,474,404,150,503,382],
+    par18: [4,4,4,3,5,3,5,4,4, 3,4,4,3,5,4,3,5,4],
+    si:    [16,18,10,12,8,4,2,14,6, 13,1,15,11,17,9,3,5,7],
   }
 };
 
@@ -2378,6 +2385,7 @@ function selectSCTee(tee) {
   SC.tee = tee;
   document.getElementById('sc-white-btn').className = `btn btn-sm ${tee==='white'?'btn-primary':'btn-secondary'}`;
   document.getElementById('sc-green-btn').className = `btn btn-sm ${tee==='green'?'btn-primary':'btn-secondary'}`;
+  document.getElementById('sc-blue-btn').className  = `btn btn-sm ${tee==='blue' ?'btn-primary':'btn-secondary'}`;
 
   // Calculate course handicap from player's handicap index
   const hcp = STATE.handicap && STATE.handicap.handicapIndex !== null ? STATE.handicap.handicapIndex : null;
@@ -2555,6 +2563,7 @@ function resetScorecard() {
   document.getElementById('sc-card').style.display = 'none';
   document.getElementById('sc-white-btn').className = 'btn btn-sm btn-secondary';
   document.getElementById('sc-green-btn').className = 'btn btn-sm btn-secondary';
+  document.getElementById('sc-blue-btn').className  = 'btn btn-sm btn-secondary';
   document.getElementById('sc-hcp-info').style.display = 'none';
   document.getElementById('sc-save-btn').disabled = true;
   // Reset date to today
