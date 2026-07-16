@@ -378,7 +378,46 @@
   }
   .pin-pad-btn:active { background: rgba(255,255,255,0.3); }
 
-  /* ===== SETUP SCREEN ===== */
+  /* ===== SCORECARD ===== */
+  .sc-num-btn {
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: 10px; font-size: 18px; font-weight: 600;
+    font-family: 'DM Serif Display', serif; color: var(--navy);
+    padding: 10px 4px; cursor: pointer; transition: all .1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sc-num-btn:active { background: var(--navy); color: #fff; transform: scale(0.95); }
+  .sc-num-btn.active-hole { background: var(--navy); color: #fff; }
+  .sc-num-clear { background: #fee2e2; border-color: #fca5a5; color: var(--danger); }
+  .sc-num-clear:active { background: var(--danger); color: #fff; }
+
+  /* Scorecard table */
+  #sc-table th, #sc-table td {
+    text-align: center; padding: 6px 3px;
+    border-bottom: 1px solid var(--border);
+    min-width: 28px;
+  }
+  #sc-table th { font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; }
+  #sc-table .sc-hole-btn {
+    width: 32px; height: 32px; border-radius: 6px;
+    border: 1.5px solid var(--border); background: var(--surface2);
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all .1s; -webkit-tap-highlight-color: transparent;
+    position: relative;
+  }
+  #sc-table .sc-hole-btn.active { border-color: var(--navy); background: rgba(26,39,68,0.08); box-shadow: 0 0 0 2px var(--navy); }
+  #sc-table .sc-hole-btn.birdie { background: #fff; }
+  #sc-table .sc-hole-btn.birdie::after { content:''; position:absolute; inset:-3px; border-radius:50%; border:2px solid var(--grass); }
+  #sc-table .sc-hole-btn.eagle { background: #fff; }
+  #sc-table .sc-hole-btn.eagle::after { content:''; position:absolute; inset:-3px; border-radius:50%; border:2px solid var(--grass); box-shadow:0 0 0 4px var(--grass); }
+  #sc-table .sc-hole-btn.bogey { outline: 2px solid var(--text); outline-offset: 2px; }
+  #sc-table .sc-hole-btn.double-bogey { outline: 2px solid var(--danger); outline-offset: 2px; box-shadow: 0 0 0 4px var(--danger); }
+  #sc-table .sc-hole-btn.par { color: var(--text); }
+  #sc-table .sc-row-label { font-size: 11px; font-weight: 600; color: var(--text-3); text-align: left; padding-left: 4px; }
+  #sc-table .sc-section-header { background: var(--navy); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .5px; }
+  #sc-table .sc-subtotal { font-family: 'DM Serif Display', serif; font-size: 15px; font-weight: 400; color: var(--navy); }
+  #sc-table .sc-net-score { font-size: 12px; color: var(--grass); font-weight: 600; }
   #setup-screen {
     display: none; position: fixed; inset: 0;
     background: var(--grass);
@@ -821,6 +860,97 @@
 
     </div>
 
+    <!-- SCORECARD PAGE -->
+    <div class="page" id="page-scorecard">
+      <div id="sc-setup" class="card">
+        <div class="card-title"><span class="dot"></span> Grand Reserve Scorecard</div>
+        <div class="form-group">
+          <label class="form-label">Select Tee</label>
+          <div style="display:flex;gap:8px;">
+            <button id="sc-white-btn" class="btn btn-sm btn-secondary" style="flex:1" onclick="selectSCTee('white')">White (66.2/105)</button>
+            <button id="sc-green-btn" class="btn btn-sm btn-secondary" style="flex:1" onclick="selectSCTee('green')">Green (64.2/102)</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input class="form-input" id="sc-date" type="date">
+        </div>
+        <div id="sc-hcp-info" style="display:none;background:var(--surface2);border-radius:10px;padding:12px;font-size:13px;margin-bottom:14px;">
+          Course Handicap: <strong id="sc-chcp">—</strong> · Playing off <strong id="sc-strokes-info">—</strong> strokes
+        </div>
+        <button class="btn btn-primary" onclick="startScorecard()">Start Round →</button>
+      </div>
+
+      <div id="sc-card" style="display:none;">
+        <!-- Header info -->
+        <div style="background:var(--navy);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-family:'DM Serif Display',serif;font-size:16px;">Grand Reserve GC</div>
+            <div id="sc-tee-label" style="font-size:12px;opacity:.7;"></div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:12px;opacity:.7;">Course Hcp</div>
+            <div style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--gold-l);" id="sc-hcp-display">—</div>
+          </div>
+        </div>
+
+        <!-- Score input pad -->
+        <div style="background:var(--surface);padding:12px 16px;border-bottom:1px solid var(--border);position:sticky;top:56px;z-index:10;">
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:8px;text-align:center;" id="sc-current-hole-label">Tap a hole to enter score</div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;" id="sc-numpad">
+            <button class="sc-num-btn" onclick="enterScore(1)">1</button>
+            <button class="sc-num-btn" onclick="enterScore(2)">2</button>
+            <button class="sc-num-btn" onclick="enterScore(3)">3</button>
+            <button class="sc-num-btn" onclick="enterScore(4)">4</button>
+            <button class="sc-num-btn" onclick="enterScore(5)">5</button>
+            <button class="sc-num-btn" onclick="enterScore(6)">6</button>
+            <button class="sc-num-btn sc-num-clear" onclick="clearHoleScore()">✕</button>
+          </div>
+        </div>
+
+        <!-- Scorecard table -->
+        <div style="overflow-x:auto;padding:0 16px;">
+          <table id="sc-table" style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;">
+            <!-- Built by JS -->
+          </table>
+        </div>
+
+        <!-- Totals -->
+        <div class="card" style="margin-top:8px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center;">
+            <div>
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)">Out</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:28px;color:var(--navy);" id="sc-out">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)">In</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:28px;color:var(--navy);" id="sc-in">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)">Total</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:28px;color:var(--navy);" id="sc-total">—</div>
+            </div>
+          </div>
+          <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:center;">
+            <div>
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)">Net Score</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:28px;color:var(--grass);" id="sc-net">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)">Differential</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:28px;color:var(--gold);" id="sc-diff">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:0 16px 16px;display:flex;gap:8px;">
+          <button class="btn btn-secondary" style="flex:1" onclick="resetScorecard()">New Round</button>
+          <button class="btn btn-primary" style="flex:2" id="sc-save-btn" onclick="saveScorecardRound()" disabled>Save Round</button>
+        </div>
+      </div>
+    </div>
+
   </div><!-- end scroll-area -->
 
   <!-- BOTTOM NAV -->
@@ -840,6 +970,10 @@
     <button class="nav-btn" id="nav-courses" onclick="showPage('courses')">
       <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
       Courses
+    </button>
+    <button class="nav-btn" id="nav-scorecard" onclick="showPage('scorecard')">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      Scorecard
     </button>
     <button class="nav-btn" id="nav-profile" onclick="showPage('profile')">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
@@ -1556,6 +1690,7 @@ function showPage(name) {
   if (name === 'courses') loadCourses();
   if (name === 'profile') populateProfileForm();
   if (name === 'admin') loadAdminPage();
+  if (name === 'scorecard') initScorecardDate();
 }
 
 // ---- ADD ROUND ----
@@ -2212,6 +2347,264 @@ async function exitImpersonation() {
   hideLoader();
   showPage('home');
   toast('Back to your own view');
+}
+
+// ---- SCORECARD ----
+
+const GR_COURSES = {
+  white: {
+    name: 'Grand Reserve GC', tee: 'White', rating: 66.2, slope: 105, par: 71,
+    yards: [361,300,300,125,471,208,419,326,340, 131,411,313,147,405,350,150,452,343],
+    par18: [4,4,4,3,5,3,5,4,4, 3,4,4,3,5,4,3,5,4],
+    si:    [16,18,10,12,8,4,2,14,6, 13,1,15,11,17,9,3,5,7],
+  },
+  green: {
+    name: 'Grand Reserve GC', tee: 'Green', rating: 64.2, slope: 102, par: 71,
+    yards: [304,213,263,105,417,159,410,278,288, 86,350,263,111,346,312,114,382,303],
+    par18: [4,4,4,3,5,3,5,4,4, 3,4,4,3,5,4,3,5,4],
+    si:    [16,18,10,12,8,4,2,14,6, 13,1,15,11,17,9,3,5,7],
+  }
+};
+
+let SC = {
+  tee: null,
+  courseHandicap: 0,
+  scores: new Array(18).fill(null),
+  activeHole: null,
+  date: null,
+};
+
+function selectSCTee(tee) {
+  SC.tee = tee;
+  document.getElementById('sc-white-btn').className = `btn btn-sm ${tee==='white'?'btn-primary':'btn-secondary'}`;
+  document.getElementById('sc-green-btn').className = `btn btn-sm ${tee==='green'?'btn-primary':'btn-secondary'}`;
+
+  // Calculate course handicap from player's handicap index
+  const hcp = STATE.handicap && STATE.handicap.handicapIndex !== null ? STATE.handicap.handicapIndex : null;
+  const course = GR_COURSES[tee];
+  if (hcp !== null) {
+    SC.courseHandicap = Math.round(hcp * (course.slope / 113) + (course.rating - course.par));
+    document.getElementById('sc-chcp').textContent = SC.courseHandicap;
+    document.getElementById('sc-strokes-info').textContent = SC.courseHandicap;
+    document.getElementById('sc-hcp-info').style.display = 'block';
+  }
+}
+
+function startScorecard() {
+  if (!SC.tee) { toast('Please select a tee', true); return; }
+  const date = document.getElementById('sc-date').value;
+  if (!date) { toast('Please select a date', true); return; }
+  SC.date = date;
+  SC.scores = new Array(18).fill(null);
+  SC.activeHole = 0;
+
+  document.getElementById('sc-setup').style.display = 'none';
+  document.getElementById('sc-card').style.display = 'block';
+
+  const course = GR_COURSES[SC.tee];
+  document.getElementById('sc-tee-label').textContent = `${course.tee} Tees · ${course.rating}/${course.slope} · Par ${course.par}`;
+  document.getElementById('sc-hcp-display').textContent = SC.courseHandicap;
+
+  buildScorecardTable();
+  setActiveHole(0);
+}
+
+function buildScorecardTable() {
+  const course = GR_COURSES[SC.tee];
+  const table = document.getElementById('sc-table');
+
+  const buildSection = (start, end, label) => {
+    const holeNums = Array.from({length: end-start}, (_,i) => `<th>${start+i+1}</th>`).join('') + `<th>${label}</th>`;
+    const yards    = Array.from({length: end-start}, (_,i) => `<td style="font-size:11px;color:var(--text-3)">${course.yards[start+i]}</td>`).join('') + '<td></td>';
+    const pars     = Array.from({length: end-start}, (_,i) => `<td style="font-weight:600">${course.par18[start+i]}</td>`).join('') + `<td class="sc-subtotal">${course.par18.slice(start,end).reduce((a,b)=>a+b,0)}</td>`;
+    const si       = Array.from({length: end-start}, (_,i) => `<td style="font-size:11px;color:var(--text-3)">${course.si[start+i]}</td>`).join('') + '<td></td>';
+    const scores   = Array.from({length: end-start}, (_,i) => {
+      const h = start+i;
+      return `<td><button class="sc-hole-btn" id="sc-hole-${h}" onclick="setActiveHole(${h})">—</button></td>`;
+    }).join('') + `<td class="sc-subtotal" id="sc-sub-${label.toLowerCase()}">—</td>`;
+
+    return `
+      <tr><th class="sc-row-label">Hole</th>${holeNums}</tr>
+      <tr><td class="sc-row-label">Yds</td>${yards}</tr>
+      <tr><td class="sc-row-label">Par</td>${pars}</tr>
+      <tr><td class="sc-row-label">SI</td>${si}</tr>
+      <tr><td class="sc-row-label">Score</td>${scores}</tr>`;
+  };
+
+  table.innerHTML = `
+    <thead>
+      <tr><th colspan="11" class="sc-section-header" style="padding:6px;text-align:left;padding-left:8px;">FRONT NINE</th></tr>
+    </thead>
+    <tbody>
+      ${buildSection(0, 9, 'OUT')}
+      <tr><td colspan="11" style="height:8px;background:var(--surface2)"></td></tr>
+      <tr><th colspan="11" class="sc-section-header" style="padding:6px;text-align:left;padding-left:8px;">BACK NINE</th></tr>
+      ${buildSection(9, 18, 'IN')}
+    </tbody>`;
+}
+
+function setActiveHole(h) {
+  // Remove active class from previous
+  if (SC.activeHole !== null) {
+    const prev = document.getElementById(`sc-hole-${SC.activeHole}`);
+    if (prev) prev.classList.remove('active');
+  }
+  SC.activeHole = h;
+  const btn = document.getElementById(`sc-hole-${h}`);
+  if (btn) {
+    btn.classList.add('active');
+    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  const course = GR_COURSES[SC.tee];
+  const par = course.par18[h];
+  const maxScore = par + 2;
+  document.getElementById('sc-current-hole-label').textContent =
+    `Hole ${h+1} · Par ${par} · Max ${maxScore} · SI ${course.si[h]}`;
+
+  // Update numpad — disable scores above double bogey
+  document.querySelectorAll('.sc-num-btn:not(.sc-num-clear)').forEach((btn, i) => {
+    const score = i + 1;
+    btn.disabled = score > maxScore;
+    btn.style.opacity = score > maxScore ? '0.3' : '1';
+  });
+}
+
+function enterScore(score) {
+  if (SC.activeHole === null) { toast('Tap a hole first', true); return; }
+  const h = SC.activeHole;
+  const course = GR_COURSES[SC.tee];
+  const par = course.par18[h];
+  const maxScore = par + 2;
+  if (score > maxScore) { toast(`Max score is ${maxScore} on this hole`, true); return; }
+
+  SC.scores[h] = score;
+  updateHoleButton(h);
+  updateTotals();
+
+  // Auto-advance to next empty hole
+  const nextEmpty = SC.scores.indexOf(null, h + 1);
+  if (nextEmpty !== -1) {
+    setActiveHole(nextEmpty);
+  } else {
+    // Check if all holes done
+    const allDone = SC.scores.every(s => s !== null);
+    document.getElementById('sc-save-btn').disabled = !allDone;
+    if (allDone) toast('Round complete! Tap Save Round to submit ⛳', false);
+  }
+}
+
+function clearHoleScore() {
+  if (SC.activeHole === null) return;
+  SC.scores[SC.activeHole] = null;
+  const btn = document.getElementById(`sc-hole-${SC.activeHole}`);
+  if (btn) { btn.textContent = '—'; btn.className = 'sc-hole-btn active'; }
+  document.getElementById('sc-save-btn').disabled = true;
+  updateTotals();
+}
+
+function updateHoleButton(h) {
+  const btn = document.getElementById(`sc-hole-${h}`);
+  if (!btn) return;
+  const score = SC.scores[h];
+  const course = GR_COURSES[SC.tee];
+  const par = course.par18[h];
+
+  btn.textContent = score;
+  btn.className = 'sc-hole-btn';
+  if (h === SC.activeHole) btn.classList.add('active');
+
+  if (score === null) return;
+  const diff = score - par;
+  if (diff <= -2) btn.classList.add('eagle');
+  else if (diff === -1) btn.classList.add('birdie');
+  else if (diff === 0) btn.classList.add('par');
+  else if (diff === 1) btn.classList.add('bogey');
+  else if (diff >= 2) btn.classList.add('double-bogey');
+}
+
+function updateTotals() {
+  const course = GR_COURSES[SC.tee];
+  const front = SC.scores.slice(0,9);
+  const back  = SC.scores.slice(9,18);
+
+  const sumFront = front.filter(s=>s!==null).reduce((a,b)=>a+b,0);
+  const sumBack  = back.filter(s=>s!==null).reduce((a,b)=>a+b,0);
+  const total    = sumFront + sumBack;
+  const allDone  = SC.scores.every(s=>s!==null);
+
+  document.getElementById('sc-out').textContent   = front.some(s=>s!==null) ? sumFront : '—';
+  document.getElementById('sc-in').textContent    = back.some(s=>s!==null)  ? sumBack  : '—';
+  document.getElementById('sc-total').textContent = allDone ? total : '—';
+  document.getElementById('sc-sub-out').textContent = front.some(s=>s!==null) ? sumFront : '—';
+  document.getElementById('sc-sub-in').textContent  = back.some(s=>s!==null)  ? sumBack  : '—';
+
+  if (allDone) {
+    const net  = total - SC.courseHandicap;
+    const diff = ((113 / course.slope) * (total - course.rating));
+    document.getElementById('sc-net').textContent  = net;
+    document.getElementById('sc-diff').textContent = (Math.round(diff*10)/10).toFixed(1);
+  } else {
+    document.getElementById('sc-net').textContent  = '—';
+    document.getElementById('sc-diff').textContent = '—';
+  }
+}
+
+function resetScorecard() {
+  SC = { tee: null, courseHandicap: 0, scores: new Array(18).fill(null), activeHole: null, date: null };
+  document.getElementById('sc-setup').style.display = 'block';
+  document.getElementById('sc-card').style.display = 'none';
+  document.getElementById('sc-white-btn').className = 'btn btn-sm btn-secondary';
+  document.getElementById('sc-green-btn').className = 'btn btn-sm btn-secondary';
+  document.getElementById('sc-hcp-info').style.display = 'none';
+  document.getElementById('sc-save-btn').disabled = true;
+  // Reset date to today
+  const n = new Date();
+  document.getElementById('sc-date').value = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
+
+async function saveScorecardRound() {
+  const allDone = SC.scores.every(s => s !== null);
+  if (!allDone) { toast('Please complete all 18 holes first', true); return; }
+
+  const course  = GR_COURSES[SC.tee];
+  const total   = SC.scores.reduce((a,b) => a+b, 0);
+  const tee     = STATE.tees.find(t => t.teeName === course.tee && t.courseRating == course.rating);
+  const courseObj = STATE.courses.find(c => c.courseName === 'Grand Reserve GC' || c.courseName.includes('Grand Reserve'));
+
+  if (!tee || !courseObj) {
+    toast('Grand Reserve not found in your courses. Add it first.', true); return;
+  }
+
+  showLoader();
+  try {
+    await apiPost('saveRound', {
+      userName:     STATE.user.userName,
+      courseId:     courseObj.courseId,
+      teeId:        tee.teeId,
+      courseName:   courseObj.courseName,
+      teeName:      tee.teeName,
+      datePlayed:   SC.date,
+      grossScore:   total,
+      holes:        18,
+      courseRating: course.rating,
+      slopeRating:  course.slope,
+      notes:        'Entered via scorecard',
+    });
+    toast('Round saved! ⛳', false);
+    await loadAll();
+    resetScorecard();
+    showPage('home');
+  } catch(e) {
+    toast('Error saving: ' + e.message, true);
+  }
+  hideLoader();
+}
+
+// Init scorecard date on page load
+function initScorecardDate() {
+  const n = new Date();
+  const el = document.getElementById('sc-date');
+  if (el) el.value = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
 }
 
 // ---- SWIPE TO REVEAL EDIT/DELETE ----
